@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>16 — lissajous curves</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+var curves=[
+{fx:2,fy:3,px:0,py:Math.PI/4},
+{fx:3,fy:4,px:Math.PI/3,py:0},
+{fx:4,fy:5,px:0,py:Math.PI/6},
+{fx:5,fy:7,px:Math.PI/5,py:Math.PI/3},
+{fx:7,fy:8,px:Math.PI/7,py:0}
+];
+var field=new Float32Array(COLS*ROWS);
+var ramp=' .\u00b7:\u2591\u2592\u2593\u2588';
+function render(now){
+requestAnimationFrame(render);
+var t=now*0.0006;
+for(var i=0;i<field.length;i++)field[i]*=0.95;
+for(var ci=0;ci<curves.length;ci++){
+var c=curves[ci];
+var fx=c.fx;
+if(ci===0&&mOn){
+fx=c.fx+(mx/W-0.5)*2;
+}
+for(var s=0;s<200;s++){
+var st=t+s*0.0314;
+var x=Math.sin(fx*st+c.px)*COLS*0.4+COLS/2;
+var y=Math.sin(c.fy*st+c.py)*ROWS*0.4+ROWS/2;
+var ix=Math.floor(x),iy=Math.floor(y);
+if(ix>=0&&ix<COLS&&iy>=0&&iy<ROWS){
+var idx=iy*COLS+ix;
+field[idx]=Math.min(1,field[idx]+0.15);
+if(ix+1<COLS)field[idx+1]=Math.min(1,field[idx+1]+0.05);
+if(ix-1>=0)field[idx-1]=Math.min(1,field[idx-1]+0.05);
+if(iy+1<ROWS)field[(iy+1)*COLS+ix]=Math.min(1,field[(iy+1)*COLS+ix]+0.05);
+if(iy-1>=0)field[(iy-1)*COLS+ix]=Math.min(1,field[(iy-1)*COLS+ix]+0.05);
+}
+}
+}
+ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+var cardRect=cardEl.getBoundingClientRect();
+var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+for(var row=0;row<ROWS;row++){
+for(var col=0;col<COLS;col++){
+var v=field[row*COLS+col];
+var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry,nd=ndx*ndx+ndy*ndy;
+var fade=nd<1?nd*nd:1;
+v*=fade;
+v=Math.max(0,Math.min(1,v));
+var ri=Math.floor(v*(ramp.length-1)+0.5);
+ctx.fillText(ramp[ri],col*CW,row*CH);
+}
+}
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

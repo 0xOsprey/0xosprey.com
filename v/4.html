@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>4 — topographic</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+#bg{position:fixed;inset:0;z-index:0;user-select:none}
+.r{font:12px/14px "Courier New",monospace;white-space:pre;color:#d4d0c8}
+.a1{opacity:.06}.a2{opacity:.14}.a3{opacity:.22}.a4{opacity:.32}
+.a5{opacity:.44}.a6{opacity:.56}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.links{margin-top:8px}
+.links a{font:300 12px/1.6 'Courier New',monospace;color:rgba(196,184,154,.6);text-decoration:none;display:block;transition:color .3s;font-variant:small-caps;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#c4b89a}
+.links a::before{content:'> ';color:rgba(196,184,154,.25)}
+
+.prompt{font:300 13px/1.5 'Courier New',monospace;color:#c4b89a;font-variant:small-caps;border-bottom:1px solid rgba(196,184,154,.25);padding-bottom:4px;margin-bottom:2px;text-shadow:0 0 6px #060608,0 0 14px #060608,0 0 22px rgba(6,6,8,.7)}
+.coord{font:300 10px/1.4 'Courier New',monospace;color:rgba(196,184,154,.25);margin-top:2px;letter-spacing:0.05em}
+
+</style></head><body>
+<div id="bg"></div>
+<div class="content"><div class="card" id="card">
+<div class="prompt">Joe Coll</div><div class="coord">48.8566° N, 2.3522° E</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>
+</div></div>
+<script>
+
+var CH=14,CW=7.2;
+var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
+
+var mouseX=-1,mouseY=-1,mouseOn=false;
+document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
+document.addEventListener('mouseleave',function(){mouseOn=false});
+document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',function(){mouseOn=false});
+
+var cardEl=document.getElementById('card');
+var iC0=0,iR0=0,iC1=0,iR1=0;
+function updIsland(){var r=cardEl.getBoundingClientRect();iC0=Math.floor(r.left/CW)-1;iR0=Math.floor(r.top/CH)-1;iC1=Math.ceil(r.right/CW)+1;iR1=Math.ceil(r.bottom/CH)+1;}
+updIsland();
+
+// Elliptical fade parameters
+var ccx=0,ccy=0,crx=1,cry=1;
+function updFade(){
+  var r=cardEl.getBoundingClientRect();
+  ccx=(r.left+r.right)/2/CW;
+  ccy=(r.top+r.bottom)/2/CH;
+  crx=r.width/2/CW+3;
+  cry=r.height/2/CH+2;
+}
+updFade();
+
+function hash(x,y){var n=x*374761393+y*668265263;n=(n^(n>>13))*1274126177;return(n^(n>>16))/2147483648;}
+function smooth(x,y){var ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);return hash(ix,iy)*(1-fx)*(1-fy)+hash(ix+1,iy)*fx*(1-fy)+hash(ix,iy+1)*(1-fx)*fy+hash(ix+1,iy+1)*fx*fy;}
+function fbm(x,y){return smooth(x,y)*.5+smooth(x*2,y*2)*.3+smooth(x*4,y*4)*.15+smooth(x*8,y*8)*.05;}
+var CONTOUR_CHARS=['·','-','─','=','≈','~','∿','+','#'];
+var elevation=new Float32Array(COLS*ROWS);
+
+var bgEl=document.getElementById('bg');
+var rowEls=[];
+for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
+
+function render(now){
+  updIsland();
+  updFade();
+  var t=now*0.00008;
+  // Cursor raises terrain
+  var cursorBoost=new Float32Array(COLS*ROWS);
+  if(mouseOn){
+    var mc=mouseX/CW,mr=mouseY/CH;
+    for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
+      var dx=col-mc,dy=row-mr;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      if(d<15) cursorBoost[row*COLS+col]=0.15*(1-d/15);
+    }
+  }
+  // Compute elevation
+  for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
+    elevation[row*COLS+col]=fbm(col*0.03+t,row*0.04+t*0.7)+cursorBoost[row*COLS+col];
+  }
+  var NUM_CONTOURS=12;
+  for(var row=0;row<ROWS;row++){
+    var line='';
+    for(var col=0;col<COLS;col++){
+      var h=elevation[row*COLS+col];
+      var contourLevel=h*NUM_CONTOURS;
+      var frac=contourLevel%1;
+      var nearContour=Math.min(frac,1-frac);
+      var hR=col<COLS-1?elevation[row*COLS+col+1]:h;
+      var hD=row<ROWS-1?elevation[(row+1)*COLS+col]:h;
+      var gx=hR-h,gy=hD-h;
+      if(nearContour<0.12){
+        var v=1-nearContour/0.12;
+        // Elliptical fade
+        var ndx=(col-ccx)/crx;
+        var ndy=(row-ccy)/cry;
+        var nd=ndx*ndx+ndy*ndy;
+        var fade=nd<1?nd*nd:1;
+        v*=fade;
+        if(v<0.03){line+=' ';continue;}
+        var ci=Math.floor(contourLevel)%CONTOUR_CHARS.length;
+        var ai=Math.max(1,Math.min(10,Math.round(v*8+2)));
+        line+='<span class="a'+ai+'">'+CONTOUR_CHARS[ci]+'</span>';
+      } else {
+        line+=' ';
+      }
+    }
+    rowEls[row].innerHTML=line;
+  }
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+</script></body></html>

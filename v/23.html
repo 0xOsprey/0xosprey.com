@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>23 — rain on still water</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#%@\u2588';
+
+// Raindrop ripples on still water
+// Each drop: center, birth time, amplitude
+var drops=[];
+var MAX_DROPS=14;
+var DROP_INTERVAL=1.4; // seconds between random drops
+var LIFETIME=7.0;      // seconds a drop ripples
+var K=0.85;            // spatial ring frequency
+var OMEGA=2.2;         // ring expansion speed
+var DECAY=0.42;        // amplitude decay over time
+var FALLOFF=0.055;     // spatial envelope (rings fade with distance)
+
+function addDrop(cx,cy,t0,amp){
+  drops.push({cx:cx,cy:cy,t0:t0,amp:amp||1.0});
+}
+
+// Seed with staggered initial drops
+var startT=performance.now()*0.001;
+for(var i=0;i<6;i++){
+  addDrop(Math.random()*COLS,Math.random()*ROWS,startT-Math.random()*LIFETIME,0.8+Math.random()*0.4);
+}
+
+var lastDrop=startT;
+var lastMouseDrop=-99;
+
+function render(now){
+  var t=now*0.001;
+
+  // Cull expired drops
+  for(var i=drops.length-1;i>=0;i--){
+    if(t-drops[i].t0>LIFETIME)drops.splice(i,1);
+  }
+
+  // Random rain: add new drops on interval
+  if(t-lastDrop>DROP_INTERVAL&&drops.length<MAX_DROPS){
+    addDrop(
+      Math.random()*COLS,
+      Math.random()*ROWS,
+      t,
+      0.7+Math.random()*0.5
+    );
+    // Occasionally two drops at once (heavier rain burst)
+    if(Math.random()<0.25&&drops.length<MAX_DROPS){
+      addDrop(Math.random()*COLS,Math.random()*ROWS,t,0.6+Math.random()*0.3);
+    }
+    lastDrop=t;
+  }
+
+  // Cursor: finger dragging through water creates continuous ripples
+  if(mOn&&t-lastMouseDrop>0.28){
+    addDrop(mx/CW,my/CH,t,1.4);
+    lastMouseDrop=t;
+    if(drops.length>MAX_DROPS)drops.shift();
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  var nd2=drops.length*2||1;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var sum=0;
+
+      for(var d=0;d<drops.length;d++){
+        var dp=drops[d];
+        var age=t-dp.t0;
+        if(age<0)continue;
+        var dx=col-dp.cx,dy=row-dp.cy;
+        var r=Math.sqrt(dx*dx+dy*dy);
+        // Ring wave: expands outward from drop center
+        var wave=Math.sin(r*K-OMEGA*age);
+        // Amplitude decays over time
+        var amp=dp.amp*Math.exp(-DECAY*age);
+        // Spatial envelope: rings fade as they expand
+        var env=Math.exp(-r*FALLOFF);
+        // Front envelope: very small r has no ring yet (water hasn't reached)
+        var front=Math.min(1,r*0.15);
+        sum+=wave*amp*env*front;
+      }
+
+      // Map [-max,+max] to [0,1]: only crests visible (like light on water)
+      var b=Math.max(0,sum)*0.7+0.5*(sum+1)*0.3*0.15;
+      b=Math.max(0,b)/1.5;
+      b=Math.pow(Math.min(1,b),0.65);
+
+      // Card fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?nd*nd:1;
+
+      if(b<0.025)continue;
+      b=Math.min(1,b);
+
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

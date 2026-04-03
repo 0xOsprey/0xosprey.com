@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>19 — murmuration</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#';
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
+
+// Boids — Craig Reynolds murmuration simulation
+var N=140;
+var MAX_SPEED=2.0,MIN_SPEED=0.7;
+var SEP_R=28,  // separation radius (px): steer away from crowding
+    VIS_R=85;  // visible range (px): alignment + cohesion
+var SEP_W=0.16, ALN_W=0.055, COH_W=0.0010;
+var MOUSE_R=160; // predator flee radius
+
+var bx=new Float32Array(N),by=new Float32Array(N);
+var bvx=new Float32Array(N),bvy=new Float32Array(N);
+var nvx=new Float32Array(N),nvy=new Float32Array(N); // next velocity buffer
+
+// Seed as a large coordinated flock
+for(var i=0;i<N;i++){
+  var a=(i/N)*Math.PI*2;
+  var r=Math.min(W,H)*0.28;
+  bx[i]=W/2+Math.cos(a)*r+(Math.random()-0.5)*40;
+  by[i]=H/2+Math.sin(a)*r+(Math.random()-0.5)*40;
+  // Tangential velocity: orbiting
+  bvx[i]=-Math.sin(a)*MAX_SPEED*0.9;
+  bvy[i]=Math.cos(a)*MAX_SPEED*0.9;
+}
+
+var SEP_R2=SEP_R*SEP_R, VIS_R2=VIS_R*VIS_R;
+
+function updateBoids(){
+  var W2=W/2,H2=H/2;
+  for(var i=0;i<N;i++){
+    var sx=0,sy=0,sc=0;   // separation
+    var ax=0,ay=0;         // alignment
+    var cx=0,cy=0,nc=0;   // cohesion
+
+    for(var j=0;j<N;j++){
+      if(i===j)continue;
+      var dx=bx[j]-bx[i],dy=by[j]-by[i];
+      // Toroidal wrap
+      if(dx>W2)dx-=W; else if(dx<-W2)dx+=W;
+      if(dy>H2)dy-=H; else if(dy<-H2)dy+=H;
+      var d2=dx*dx+dy*dy;
+      if(d2<SEP_R2){
+        var d=Math.sqrt(d2)||1;
+        sx-=dx/d;sy-=dy/d;sc++;
+      }
+      if(d2<VIS_R2){
+        ax+=bvx[j];ay+=bvy[j];
+        cx+=bx[j];cy+=by[j];nc++;
+      }
+    }
+
+    var fx=0,fy=0;
+    if(sc>0){fx+=sx/sc*SEP_W;fy+=sy/sc*SEP_W;}
+    if(nc>0){
+      // Alignment: steer toward average heading
+      var avgVX=ax/nc,avgVY=ay/nc;
+      fx+=(avgVX-bvx[i])*ALN_W;
+      fy+=(avgVY-bvy[i])*ALN_W;
+      // Cohesion: steer toward center of mass
+      fx+=(cx/nc-bx[i])*COH_W;
+      fy+=(cy/nc-by[i])*COH_W;
+    }
+
+    // Cursor = predator: flee dramatically
+    if(mOn){
+      var mdx=bx[i]-mx,mdy=by[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<MOUSE_R){
+        var mf=(1-md/MOUSE_R)*(1-md/MOUSE_R)*0.32;
+        fx+=mdx/md*mf;fy+=mdy/md*mf;
+      }
+    }
+
+    nvx[i]=bvx[i]+fx;
+    nvy[i]=bvy[i]+fy;
+
+    // Speed clamp
+    var spd=Math.sqrt(nvx[i]*nvx[i]+nvy[i]*nvy[i])||1;
+    if(spd>MAX_SPEED){nvx[i]=nvx[i]/spd*MAX_SPEED;nvy[i]=nvy[i]/spd*MAX_SPEED;}
+    else if(spd<MIN_SPEED){nvx[i]=nvx[i]/spd*MIN_SPEED;nvy[i]=nvy[i]/spd*MIN_SPEED;}
+  }
+
+  for(var i=0;i<N;i++){
+    bvx[i]=nvx[i];bvy[i]=nvy[i];
+    bx[i]+=bvx[i];by[i]+=bvy[i];
+    // Toroidal wrap
+    if(bx[i]<0)bx[i]+=W;else if(bx[i]>=W)bx[i]-=W;
+    if(by[i]<0)by[i]+=H;else if(by[i]>=H)by[i]-=H;
+  }
+}
+
+// Density + direction fields with persistence decay
+var field=new Float32Array(COLS*ROWS);
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+var DECAY=0.84;
+
+function render(){
+  updateBoids();
+
+  // Decay persistence fields
+  for(var i=0;i<field.length;i++){
+    field[i]*=DECAY;
+    dfx[i]*=DECAY;
+    dfy[i]*=DECAY;
+  }
+
+  // Splat boids onto density field with 4-neighbor bleed
+  for(var i=0;i<N;i++){
+    var col=Math.floor(bx[i]/CW),row=Math.floor(by[i]/CH);
+    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
+    var spd=Math.sqrt(bvx[i]*bvx[i]+bvy[i]*bvy[i]);
+    var v=0.28+spd/MAX_SPEED*0.40;
+    var idx=row*COLS+col;
+    field[idx]+=v;dfx[idx]+=bvx[i]*v;dfy[idx]+=bvy[i]*v;
+    // Soft bleed to 4 neighbors
+    if(col>0){field[idx-1]+=v*0.28;dfx[idx-1]+=bvx[i]*v*0.28;dfy[idx-1]+=bvy[i]*v*0.28;}
+    if(col<COLS-1){field[idx+1]+=v*0.28;dfx[idx+1]+=bvx[i]*v*0.28;dfy[idx+1]+=bvy[i]*v*0.28;}
+    if(row>0){field[idx-COLS]+=v*0.28;dfx[idx-COLS]+=bvx[i]*v*0.28;dfy[idx-COLS]+=bvy[i]*v*0.28;}
+    if(row<ROWS-1){field[idx+COLS]+=v*0.28;dfx[idx+COLS]+=bvx[i]*v*0.28;dfy[idx+COLS]+=bvy[i]*v*0.28;}
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var idx=row*COLS+col;
+      var b=Math.min(1,field[idx]);
+      if(b<0.035)continue;
+
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?nd*nd:1;
+      if(b<0.035)continue;
+
+      var ch;
+      if(b>0.52){
+        // Dense cluster: use density characters
+        ch=RAMP[Math.min(RAMP.length-1,(b*(RAMP.length-1))|0)];
+      }else{
+        // Sparse: show flight direction
+        var vx=dfx[idx],vy=dfy[idx];
+        var angle=Math.atan2(vy,vx);
+        var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
+        ch=DIRS[di];
+      }
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>5 — slow starfield</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+#bg{position:fixed;inset:0;z-index:0;user-select:none}
+.r{white-space:pre;color:#d4d0c8}
+.a1{opacity:.06}.a2{opacity:.12}.a3{opacity:.20}.a4{opacity:.30}
+.a5{opacity:.42}.a6{opacity:.55}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.nav a{font:400 9px/1 'Courier New',monospace;color:rgba(212,208,200,.18);text-decoration:none;letter-spacing:.08em;transition:color .3s}
+.r{font:11px/13px 'Courier New',monospace;height:13px}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 10px rgba(255,255,255,.8),0 0 25px rgba(255,255,255,.3)}
+.prompt .tw{display:inline-block}
+
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.55);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px rgba(255,255,255,.4)}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.25)}
+.links .tw{display:inline-block}
+
+@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.5}}
+</style></head><body>
+<div id="bg"></div>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+
+var CH=13,CW=6.6;
+var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
+
+var mouseX=-1,mouseY=-1,mouseOn=false,prevMX=-1,prevMY=-1;
+document.addEventListener('mousemove',function(e){mouseOn=true;prevMX=mouseX;prevMY=mouseY;mouseX=e.clientX;mouseY=e.clientY});
+document.addEventListener('mouseleave',function(){mouseOn=false});
+document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',function(){mouseOn=false});
+
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt" id="promptEl">Joe Coll</div><div class="links" id="linksEl"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+// Wrap characters in twinkle spans
+function wrapTwinkle(el){
+  var text=el.textContent;
+  var html='';
+  for(var i=0;i<text.length;i++){
+    if(text[i]===' '){html+=' ';continue;}
+    var dur=(1.5+Math.random()*3).toFixed(2);
+    var del=(Math.random()*3).toFixed(2);
+    html+='<span class="tw" style="animation:twinkle '+dur+'s ease-in-out '+del+'s infinite">'+text[i]+'</span>';
+  }
+  el.innerHTML=html;
+}
+wrapTwinkle(document.getElementById('promptEl'));
+var linkEls=document.querySelectorAll('#linksEl a');
+for(var li=0;li<linkEls.length;li++) wrapTwinkle(linkEls[li]);
+
+// Elliptical fade parameters
+var ccx=0,ccy=0,crx=1,cry=1;
+function updFade(){
+  var r=cardEl.getBoundingClientRect();
+  ccx=(r.left+r.right)/2/CW;
+  ccy=(r.top+r.bottom)/2/CH;
+  crx=r.width/2/CW+3;
+  cry=r.height/2/CH+2;
+}
+updFade();
+
+var STAR_N=800;
+var stars=[];
+for(var i=0;i<STAR_N;i++)stars.push({x:(Math.random()-.5)*3,y:(Math.random()-.5)*3,z:Math.random()});
+var grid=new Float32Array(COLS*ROWS);
+var RAMP=' \u00B7.+*\u2022\u2726\u2736\u2738';
+var RAMP2=' \u2219\u2027\u00D7\u2666\u25C6\u2605\u2588';
+var steerX=0,steerY=0;
+
+var bgEl=document.getElementById('bg');
+var rowEls=[];
+for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
+
+function render(now){
+  updFade();
+  for(var i=0;i<grid.length;i++)grid[i]*=.75;
+  if(mouseOn){steerX+=((mouseX/innerWidth-.5)*.006-steerX)*.03;steerY+=((mouseY/innerHeight-.5)*.006-steerY)*.03;}
+  else{steerX*=.99;steerY*=.99;}
+  var speed=.004;
+  for(var i=0;i<STAR_N;i++){
+    var s=stars[i];
+    s.z-=speed;s.x+=steerX;s.y+=steerY;
+    if(s.z<=.001){s.x=(Math.random()-.5)*3;s.y=(Math.random()-.5)*3;s.z=1;}
+    var sx=s.x/s.z,sy=s.y/s.z;
+    var col=Math.floor((sx+1)*.5*COLS),row=Math.floor((sy+1)*.5*ROWS);
+    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
+    var brightness=Math.min(1,(1-s.z)*1.8);
+    grid[row*COLS+col]=Math.max(grid[row*COLS+col],brightness);
+    for(var t=1;t<4;t++){
+      var pz=s.z+speed*t*4;if(pz>1)continue;
+      var psx=s.x/pz,psy=s.y/pz;
+      var pc=Math.floor((psx+1)*.5*COLS),pr=Math.floor((psy+1)*.5*ROWS);
+      if(pc>=0&&pc<COLS&&pr>=0&&pr<ROWS)grid[pr*COLS+pc]=Math.max(grid[pr*COLS+pc],brightness*(1-t/4)*.5);
+    }
+  }
+  for(var row=0;row<ROWS;row++){
+    var line='';
+    for(var col=0;col<COLS;col++){
+      var v=grid[row*COLS+col];
+      // Elliptical fade
+      var ndx=(col-ccx)/crx;
+      var ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      v*=fade;
+      if(v<.04){line+=' ';continue;}
+      var ramp=((row*131+col*997)&1)?RAMP:RAMP2;
+      var ci=Math.min(ramp.length-1,(v*ramp.length)|0);
+      var ai=Math.max(1,Math.min(10,Math.round(v*10)));
+      line+='<span class="a'+ai+'">'+ramp[ci]+'</span>';
+    }
+    rowEls[row].innerHTML=line;
+  }
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+</script></body></html>

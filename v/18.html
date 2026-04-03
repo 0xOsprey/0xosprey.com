@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>18 — lightning storm</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#e8e0d8}
+.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' \u2591\u2592\u2593\u2588';
+var field=new Float32Array(COLS*ROWS);
+var frameCount=0;
+
+// Bolt spawning: creates a branching lightning bolt that walks downward
+function spawnBolt(startCol,startRow,targetCol,intensity,maxBranches){
+  var branches=[{col:startCol,row:startRow,intensity:intensity,dx:0}];
+  var safety=0;
+  while(branches.length>0&&safety<ROWS*3){
+    var next=[];
+    for(var b=0;b<branches.length;b++){
+      var br=branches[b];
+      if(br.row>=ROWS||br.row<0||br.col<0||br.col>=COLS||br.intensity<0.06)continue;
+
+      // Write brightness into field with thickness
+      var c=Math.round(br.col),r=Math.round(br.row);
+      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
+        var idx=r*COLS+c;
+        field[idx]=Math.min(1,field[idx]+br.intensity);
+        // Glow neighbors for thickness
+        if(c>0)field[idx-1]=Math.min(1,field[idx-1]+br.intensity*0.45);
+        if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+br.intensity*0.45);
+        if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+br.intensity*0.2);
+        if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+br.intensity*0.2);
+      }
+
+      // Horizontal jitter
+      var jitter=(Math.random()-0.5)*3.5;
+      // Bias toward target column
+      if(targetCol>=0){
+        var pull=(targetCol-br.col)*0.035;
+        jitter+=pull;
+      }
+      br.dx=br.dx*0.65+jitter*0.35;
+
+      var newCol=br.col+br.dx;
+      var newRow=br.row+1;
+
+      // 15% branching chance
+      if(Math.random()<0.15&&maxBranches>0){
+        next.push({col:newCol-1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx-1.2});
+        next.push({col:newCol+1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx+1.2});
+        maxBranches--;
+      }else{
+        next.push({col:newCol,row:newRow,intensity:br.intensity*0.988,dx:br.dx});
+      }
+    }
+    branches=next;
+    safety++;
+  }
+}
+
+// Mini-bolt radiating from a point in an arbitrary direction
+function spawnMiniBolt(startCol,startRow,angle,intensity){
+  var col=startCol,row=startRow;
+  var dx=Math.cos(angle)*1.3;
+  var dy=Math.sin(angle)*1.3;
+  var len=10+Math.random()*20;
+  for(var i=0;i<len;i++){
+    var c=Math.round(col),r=Math.round(row);
+    if(c>=0&&c<COLS&&r>=0&&r<ROWS){
+      var idx=r*COLS+c;
+      field[idx]=Math.min(1,field[idx]+intensity);
+      if(c>0)field[idx-1]=Math.min(1,field[idx-1]+intensity*0.3);
+      if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+intensity*0.3);
+      if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+intensity*0.3);
+      if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+intensity*0.3);
+    }
+    col+=dx+(Math.random()-0.5)*1.8;
+    row+=dy+(Math.random()-0.5)*1.8;
+    intensity*=0.91;
+    // Sub-branching for mini-bolts
+    if(Math.random()<0.08&&intensity>0.15){
+      var brAngle=angle+(Math.random()-0.5)*1.5;
+      spawnMiniBolt(col,row,brAngle,intensity*0.5);
+    }
+    if(intensity<0.04)break;
+  }
+}
+
+function render(){
+  frameCount++;
+
+  // Decay brightness field
+  for(var i=0;i<field.length;i++){
+    field[i]*=0.85;
+  }
+
+  // Very subtle ambient noise for atmosphere
+  if(frameCount%2===0){
+    for(var i=0;i<8;i++){
+      var ri=Math.floor(Math.random()*field.length);
+      field[ri]=Math.min(1,field[ri]+Math.random()*0.05);
+    }
+  }
+
+  // Main lightning bolts from top every ~60 frames
+  if(frameCount%60<1){
+    var startCol=Math.random()*COLS;
+    var targetCol=mOn?(mx/CW):-1;
+    spawnBolt(startCol,0,targetCol,1.0,7);
+  }
+
+  // Secondary bolt offset timing for more activity
+  if(frameCount%60===30){
+    var startCol=Math.random()*COLS;
+    var targetCol=mOn?(mx/CW):-1;
+    spawnBolt(startCol,0,targetCol,0.8,5);
+  }
+
+  // Occasional extra bolt for dramatic bursts
+  if(Math.random()<0.015){
+    var startCol=Math.random()*COLS;
+    var targetCol=mOn?(mx/CW):-1;
+    spawnBolt(startCol,0,targetCol,0.9,6);
+  }
+
+  // Side bolts from left or right edge
+  if(frameCount%150<1){
+    var fromLeft=Math.random()<0.5;
+    var startRow=Math.random()*ROWS*0.6;
+    var col=fromLeft?0:COLS-1;
+    var dirX=fromLeft?1:-1;
+    var bCol=col,bRow=startRow,bIntensity=0.75,bDx=0;
+    for(var step=0;step<COLS;step++){
+      var c=Math.round(bCol),r=Math.round(bRow);
+      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
+        var idx=r*COLS+c;
+        field[idx]=Math.min(1,field[idx]+bIntensity);
+        if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+bIntensity*0.3);
+        if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+bIntensity*0.3);
+      }
+      var jitter=(Math.random()-0.5)*2.0;
+      if(mOn)jitter+=(my/CH-bRow)*0.02;
+      bDx=bDx*0.7+jitter*0.3;
+      bCol+=dirX;
+      bRow+=bDx;
+      bIntensity*=0.993;
+      if(Math.random()<0.08){
+        var brAngle=fromLeft?Math.random()*Math.PI-Math.PI/2:Math.PI/2+Math.random()*Math.PI;
+        spawnMiniBolt(bCol,bRow,brAngle,bIntensity*0.5);
+      }
+      if(bIntensity<0.05)break;
+    }
+  }
+
+  // Cursor mini-bolts: radiate outward every ~30 frames
+  if(mOn&&frameCount%30<1){
+    var curCol=mx/CW;
+    var curRow=my/CH;
+    var numBolts=5+Math.floor(Math.random()*5);
+    for(var i=0;i<numBolts;i++){
+      var angle=Math.random()*Math.PI*2;
+      spawnMiniBolt(curCol,curRow,angle,0.9);
+    }
+  }
+
+  // Continuous cursor sparks
+  if(mOn){
+    var curCol=mx/CW;
+    var curRow=my/CH;
+    for(var i=0;i<5;i++){
+      var sc=Math.round(curCol+(Math.random()-0.5)*8);
+      var sr=Math.round(curRow+(Math.random()-0.5)*5);
+      if(sc>=0&&sc<COLS&&sr>=0&&sr<ROWS){
+        field[sr*COLS+sc]=Math.min(1,field[sr*COLS+sc]+0.2);
+      }
+    }
+  }
+
+  // Render
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var brightness=field[row*COLS+col];
+
+      // Card fade - soft elliptical
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      brightness*=fade;
+
+      if(brightness<0.03)continue;
+      brightness=Math.min(1,brightness);
+
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

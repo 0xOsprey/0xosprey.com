@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>11 — aurora borealis</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#%@\u2588';
+
+// Aurora bands: each a glowing curtain with rays shooting upward
+// yf=base fraction, freq=waves across screen, amp=wave height fraction,
+// spd=phase drift speed, sigD=sharp lower sigma, sigU=ray upper sigma, pk=peak brightness
+var BANDS=[
+  {yf:0.18,freq:3.2,amp:0.060,spd:0.130,sigD:0.030,sigU:0.150,pk:1.20},
+  {yf:0.26,freq:4.8,amp:0.038,spd:-0.085,sigD:0.018,sigU:0.110,pk:0.88},
+  {yf:0.33,freq:2.3,amp:0.070,spd:0.170,sigD:0.040,sigU:0.200,pk:1.40},
+  {yf:0.21,freq:6.2,amp:0.028,spd:-0.100,sigD:0.013,sigU:0.085,pk:0.68},
+  {yf:0.42,freq:3.6,amp:0.050,spd:0.090,sigD:0.026,sigU:0.130,pk:0.95},
+  {yf:0.13,freq:1.9,amp:0.035,spd:0.210,sigD:0.011,sigU:0.075,pk:0.58},
+];
+
+function render(now){
+  var t=now*0.001;
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  // Slow global breathe
+  var breathe=0.74+0.26*Math.sin(t*0.30);
+  // Shimmer seeds
+  var sh1=t*1.35,sh2=t*1.05;
+
+  for(var row=0;row<ROWS;row++){
+    var y=row/ROWS;
+    for(var col=0;col<COLS;col++){
+      var x=col/COLS;
+      var brightness=0;
+
+      for(var b=0;b<BANDS.length;b++){
+        var bd=BANDS[b];
+        // Band centerline undulates horizontally
+        var cy=(bd.yf+bd.amp*Math.sin(x*Math.PI*2*bd.freq+t*bd.spd))*ROWS;
+        var dy=row-cy;
+        var brt;
+        if(dy<0){
+          // Above center: long upward rays
+          var nd=-dy/(bd.sigU*ROWS);
+          brt=bd.pk*Math.exp(-nd*nd*0.85);
+        }else{
+          // Below center: sharp base edge
+          var nd=dy/(bd.sigD*ROWS);
+          brt=bd.pk*Math.exp(-nd*nd*3.2);
+        }
+        // Per-band shimmer
+        brt*=0.88+0.12*Math.sin(col*0.22+t*(1.6+b*0.35));
+        brightness+=brt;
+      }
+
+      brightness*=breathe;
+
+      // Horizon fade: ground below aurora is dark
+      if(y>0.72)brightness*=Math.max(0,1-(y-0.72)/0.28);
+
+      // Cursor: touch the aurora — bright rippling column
+      if(mOn){
+        var cdx=Math.abs(col-mx/CW);
+        if(cdx<14){
+          var cf=(1-(cdx/14)*(cdx/14));
+          brightness+=cf*0.7*(0.65+0.35*Math.sin(row*0.09-t*2.2));
+        }
+      }
+
+      // Card fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      brightness*=nd<1?nd*nd:1;
+
+      brightness=Math.max(0,Math.min(1,brightness));
+      if(brightness<0.024)continue;
+
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
