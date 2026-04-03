@@ -124,29 +124,31 @@ function render(){
     }
   }
 
-  // Main lightning bolts from top every ~60 frames
-  if(frameCount%60<1){
+  // Main lightning bolts from top — slow, dramatic, one at a time
+  if(frameCount%210<1){
     var startCol=Math.random()*COLS;
     var targetCol=mOn?(mx/CW):-1;
     spawnBolt(startCol,0,targetCol,1.0,7);
   }
 
-  // Secondary bolt offset timing for more activity
-  if(frameCount%60===30){
-    var startCol=Math.random()*COLS;
-    var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,0.8,5);
+  // Secondary bolt offset timing
+  if(frameCount%210===105){
+    if(Math.random()<0.45){
+      var startCol=Math.random()*COLS;
+      var targetCol=mOn?(mx/CW):-1;
+      spawnBolt(startCol,0,targetCol,0.7,4);
+    }
   }
 
-  // Occasional extra bolt for dramatic bursts
-  if(Math.random()<0.015){
+  // Rare extra bolt
+  if(Math.random()<0.003){
     var startCol=Math.random()*COLS;
     var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,0.9,6);
+    spawnBolt(startCol,0,targetCol,0.9,5);
   }
 
-  // Side bolts from left or right edge
-  if(frameCount%150<1){
+  // Side bolts — infrequent
+  if(frameCount%400<1){
     var fromLeft=Math.random()<0.5;
     var startRow=Math.random()*ROWS*0.6;
     var col=fromLeft?0:COLS-1;
@@ -174,8 +176,8 @@ function render(){
     }
   }
 
-  // Cursor mini-bolts: radiate outward every ~30 frames
-  if(mOn&&frameCount%30<1){
+  // Cursor mini-bolts: radiate outward every ~70 frames
+  if(mOn&&frameCount%70<1){
     var curCol=mx/CW;
     var curRow=my/CH;
     var numBolts=5+Math.floor(Math.random()*5);
@@ -189,7 +191,7 @@ function render(){
   if(mOn){
     var curCol=mx/CW;
     var curRow=my/CH;
-    for(var i=0;i<5;i++){
+    for(var i=0;i<2;i++){
       var sc=Math.round(curCol+(Math.random()-0.5)*8);
       var sr=Math.round(curRow+(Math.random()-0.5)*5);
       if(sc>=0&&sc<COLS&&sr>=0&&sr<ROWS){
