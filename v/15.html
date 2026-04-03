@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>15 — water caustics</title>
+<title>15 — voronoi drift</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -30,72 +30,86 @@ cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="
 
 var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-// Water surface wave vectors: caustic brightness = Laplacian of height field
-// Laplacian of A*sin(kx*x+ky*y+om*t) = -A*(kx^2+ky^2)*sin(...)
-// Bright spots where light focuses (positive Laplacian = concave surface)
-var WV=[
-  {kx: 2.10, ky: 0.55, A:0.40, om:0.50},
-  {kx:-0.85, ky: 2.25, A:0.35, om:0.71},
-  {kx: 1.60, ky:-1.85, A:0.42, om:0.44},
-  {kx: 0.50, ky: 1.70, A:0.32, om:0.63},
-  {kx:-1.30, ky:-0.95, A:0.37, om:0.57},
-  {kx: 2.75, ky: 1.15, A:0.28, om:0.49},
-  {kx:-1.80, ky: 0.45, A:0.31, om:0.67},
-];
+// Voronoi drift: seeds float on slow sinusoidal paths.
+// Each character glows where it is equidistant from two nearest seeds —
+// the cell boundaries shimmer like bioluminescent membranes.
+var NS=18;
+var sBaseX=new Float32Array(NS),sBaseY=new Float32Array(NS);
+var sAX=new Float32Array(NS),sAY=new Float32Array(NS);
+var sFX=new Float32Array(NS),sFY=new Float32Array(NS);
+var sPX=new Float32Array(NS),sPY=new Float32Array(NS);
 
-// Precompute Laplacian coefficients: A*(kx^2+ky^2)
-var LK=new Float32Array(WV.length);
-var MAXL=0;
-for(var i=0;i<WV.length;i++){
-  var w=WV[i];
-  LK[i]=w.A*(w.kx*w.kx+w.ky*w.ky);
-  MAXL+=LK[i];
+for(var i=0;i<NS;i++){
+  // Distribute base positions in a loose grid with jitter
+  var gx=i%6,gy=Math.floor(i/6);
+  sBaseX[i]=(gx+0.5)/6+(Math.random()-0.5)*0.12;
+  sBaseY[i]=(gy+0.5)/3+(Math.random()-0.5)*0.15;
+  sAX[i]=0.08+Math.random()*0.10;
+  sAY[i]=0.08+Math.random()*0.10;
+  sFX[i]=0.035+Math.random()*0.055;
+  sFY[i]=0.035+Math.random()*0.055;
+  sPX[i]=Math.random()*Math.PI*2;
+  sPY[i]=Math.random()*Math.PI*2;
 }
 
-// Scale: ~6-8 wavelengths across each axis
-var XS=22/COLS, YS=22/ROWS;
+var cx=new Float32Array(NS),cy=new Float32Array(NS);
 
 function render(now){
   var t=now*0.001;
+
+  // Update seed positions
+  for(var i=0;i<NS;i++){
+    cx[i]=(sBaseX[i]+Math.sin(t*sFX[i]+sPX[i])*sAX[i])*COLS;
+    cy[i]=(sBaseY[i]+Math.sin(t*sFY[i]+sPY[i])*sAY[i])*ROWS;
+  }
+
+  // Mouse seed: cursor acts as an extra drifting seed, warping nearby cells
+  var hasMouse=mOn;
+  var mcx=mx/CW,mcy=my/CH;
+
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
 
   var cardRect=cardEl.getBoundingClientRect();
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
   var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
-  // Mouse position in wave-space
-  var mcx=mOn?(mx/CW)*XS:0, mcy=mOn?(my/CH)*YS:0;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var x=col*XS, y=row*YS;
-
-      // Analytical Laplacian: sum of -LK[i]*sin(kx*x+ky*y+om*t)
-      // Negated: bright where surface concave upward (focusing)
-      var L=0;
-      for(var i=0;i<WV.length;i++){
-        var w=WV[i];
-        L-=LK[i]*Math.sin(w.kx*x+w.ky*y+w.om*t);
+      // Find two nearest seed distances using squared distance (faster)
+      var d1sq=1e18,d2sq=1e18;
+      for(var i=0;i<NS;i++){
+        var dx=col-cx[i],dy=row-cy[i];
+        var dsq=dx*dx+dy*dy;
+        if(dsq<d1sq){d2sq=d1sq;d1sq=dsq;}
+        else if(dsq<d2sq){d2sq=dsq;}
+      }
+      // Mouse seed
+      if(hasMouse){
+        var dx=col-mcx,dy=row-mcy;
+        var dsq=dx*dx+dy*dy;
+        if(dsq<d1sq){d2sq=d1sq;d1sq=dsq;}
+        else if(dsq<d2sq){d2sq=dsq;}
       }
 
-      // Cursor ripple: circular expanding waves from cursor
-      if(mOn){
-        var mr=Math.sqrt((x-mcx)*(x-mcx)+(y-mcy)*(y-mcy));
-        L+=MAXL*0.55*Math.sin(mr*5.5-t*8.5)*Math.exp(-mr*0.45);
-      }
+      var d1=Math.sqrt(d1sq),d2=Math.sqrt(d2sq);
+      var gap=d2-d1;
 
-      // Map: only focusing regions glow (positive L = light concentrates here)
-      var b=Math.max(0,L/MAXL);
-      // Power curve sharpens bright caustic lines vs dark background
-      b=Math.pow(b,0.52);
+      // Boundary glow: bright where gap is small (near cell walls)
+      var b=1/(1+gap*0.75);
+
+      // Subtle interior warmth: cell centers faintly lit
+      b=b*0.80+Math.max(0,1-d1*0.065)*0.20;
+
+      // Slow breathe
+      b*=0.82+0.18*Math.sin(t*0.28+d1*0.08);
 
       // Card fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
       b*=nd<1?nd*nd:1;
 
-      b=Math.min(1,b);
-      if(b<0.03)continue;
+      b=Math.max(0,Math.min(1,b));
+      if(b<0.025)continue;
 
       var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
       var ch=RAMP[ci];

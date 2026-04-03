@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>11 — aurora borealis</title>
+<title>11 — deep sea</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -30,83 +30,102 @@ cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="
 
 var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-// Aurora bands: each a glowing curtain with rays shooting upward
-// yf=base fraction, freq=waves across screen, amp=wave height fraction,
-// spd=phase drift speed, sigD=sharp lower sigma, sigU=ray upper sigma, pk=peak brightness
-var BANDS=[
-  {yf:0.18,freq:3.2,amp:0.060,spd:0.130,sigD:0.030,sigU:0.150,pk:1.20},
-  {yf:0.26,freq:4.8,amp:0.038,spd:-0.085,sigD:0.018,sigU:0.110,pk:0.88},
-  {yf:0.33,freq:2.3,amp:0.070,spd:0.170,sigD:0.040,sigU:0.200,pk:1.40},
-  {yf:0.21,freq:6.2,amp:0.028,spd:-0.100,sigD:0.013,sigU:0.085,pk:0.68},
-  {yf:0.42,freq:3.6,amp:0.050,spd:0.090,sigD:0.026,sigU:0.130,pk:0.95},
-  {yf:0.13,freq:1.9,amp:0.035,spd:0.210,sigD:0.011,sigU:0.075,pk:0.58},
-];
+// Bioluminescent deep sea: organisms drift upward from the abyss,
+// each pulsing with its own private rhythm. Jellyfish bloom softly.
+// Cursor stirs the water — creatures scatter and swirl.
+var N=280;
+var px=new Float32Array(N),py=new Float32Array(N);
+var pvx=new Float32Array(N),pvy=new Float32Array(N);
+var pphase=new Float32Array(N),pfreq=new Float32Array(N);
+var psize=new Float32Array(N),pbase=new Float32Array(N);
+var psway=new Float32Array(N); // sway phase offset per particle
+
+for(var i=0;i<N;i++){
+  px[i]=Math.random()*W;
+  py[i]=Math.random()*H; // start scattered
+  pvy[i]=-(0.25+Math.random()*0.65); // upward drift speed
+  pphase[i]=Math.random()*Math.PI*2;
+  pfreq[i]=0.012+Math.random()*0.038; // pulse frequency
+  // 10% are jellyfish (large, slow, bright)
+  var jelly=Math.random()<0.10;
+  psize[i]=jelly?4.5+Math.random()*3.5:0.9+Math.random()*1.8;
+  pbase[i]=jelly?0.9:0.55+Math.random()*0.45;
+  psway[i]=Math.random()*Math.PI*2;
+}
+
+var field=new Float32Array(COLS*ROWS);
 
 function render(now){
   var t=now*0.001;
+
+  // Decay field — fast enough that only current glow is visible
+  for(var i=0;i<field.length;i++)field[i]*=0.72;
+
+  for(var i=0;i<N;i++){
+    pphase[i]+=pfreq[i];
+
+    // Gentle sinusoidal sway + cursor disturbance
+    var swayX=Math.sin(pphase[i]*0.6+psway[i])*0.28;
+    var vx=swayX;
+    var vy=pvy[i];
+
+    if(mOn){
+      var mdx=px[i]-mx,mdy=py[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<130){
+        var mf=(1-md/130)*1.4;
+        vx+=mdx/md*mf;vy+=mdy/md*mf;
+      }
+    }
+
+    px[i]+=vx;py[i]+=vy;
+
+    // Respawn at bottom when exiting top
+    if(py[i]<-psize[i]*CH){
+      py[i]=H+psize[i]*CH;
+      px[i]=Math.random()*W;
+    }
+    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
+
+    // Pulsed brightness — squared sine for sharper flares
+    var s=Math.sin(pphase[i]);
+    var b=pbase[i]*Math.max(0,s)*Math.max(0,s);
+    if(b<0.04)continue;
+
+    // Gaussian splat around particle position
+    var gc=px[i]/CW,gr=py[i]/CH,sr=psize[i];
+    var c0=Math.max(0,Math.floor(gc-sr-1)),c1=Math.min(COLS-1,Math.ceil(gc+sr+1));
+    var r0=Math.max(0,Math.floor(gr-sr-1)),r1=Math.min(ROWS-1,Math.ceil(gr+sr+1));
+    var inv=1/(sr*sr+0.1);
+    for(var r=r0;r<=r1;r++){
+      for(var c=c0;c<=c1;c++){
+        var dc=c-gc,dr=r-gr;
+        var g=Math.exp(-(dc*dc+dr*dr)*inv);
+        field[r*COLS+c]+=b*g;
+      }
+    }
+  }
+
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
 
   var cardRect=cardEl.getBoundingClientRect();
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
   var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
-  // Slow global breathe
-  var breathe=0.74+0.26*Math.sin(t*0.30);
-  // Shimmer seeds
-  var sh1=t*1.35,sh2=t*1.05;
-
   for(var row=0;row<ROWS;row++){
-    var y=row/ROWS;
     for(var col=0;col<COLS;col++){
-      var x=col/COLS;
-      var brightness=0;
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.025)continue;
 
-      for(var b=0;b<BANDS.length;b++){
-        var bd=BANDS[b];
-        // Band centerline undulates horizontally
-        var cy=(bd.yf+bd.amp*Math.sin(x*Math.PI*2*bd.freq+t*bd.spd))*ROWS;
-        var dy=row-cy;
-        var brt;
-        if(dy<0){
-          // Above center: long upward rays
-          var nd=-dy/(bd.sigU*ROWS);
-          brt=bd.pk*Math.exp(-nd*nd*0.85);
-        }else{
-          // Below center: sharp base edge
-          var nd=dy/(bd.sigD*ROWS);
-          brt=bd.pk*Math.exp(-nd*nd*3.2);
-        }
-        // Per-band shimmer
-        brt*=0.88+0.12*Math.sin(col*0.22+t*(1.6+b*0.35));
-        brightness+=brt;
-      }
-
-      brightness*=breathe;
-
-      // Horizon fade: ground below aurora is dark
-      if(y>0.72)brightness*=Math.max(0,1-(y-0.72)/0.28);
-
-      // Cursor: touch the aurora — bright rippling column
-      if(mOn){
-        var cdx=Math.abs(col-mx/CW);
-        if(cdx<14){
-          var cf=(1-(cdx/14)*(cdx/14));
-          brightness+=cf*0.7*(0.65+0.35*Math.sin(row*0.09-t*2.2));
-        }
-      }
-
-      // Card fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      brightness*=nd<1?nd*nd:1;
+      b*=nd<1?nd*nd:1;
+      if(b<0.025)continue;
 
-      brightness=Math.max(0,Math.min(1,brightness));
-      if(brightness<0.024)continue;
-
-      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
       var ch=RAMP[ci];
       if(ch===' ')continue;
-      ctx.globalAlpha=brightness;
+      ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }
   }
