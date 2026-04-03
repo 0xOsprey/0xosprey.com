@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>12 — lorenz attractor</title>
+<title>12 — metaballs</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .card{pointer-events:auto;text-align:left;padding:0}
-.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
 .links{margin-top:8px}
-.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
-.links a:hover{color:#e8e0d8}
-.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -28,116 +28,83 @@ addEventListener('mouseleave',function(){mOn=false});
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 
-// Lorenz system parameters
-var sigma=10, rho=28, beta=8/3, dt=0.005;
-var NUM_PARTICLES=80;
-var SUB_STEPS=8;
+var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-// Brightness field with decay
-var bright=new Float32Array(COLS*ROWS);
-var DECAY=0.97;
+// Metaballs: blobs defined by potential field F = Σ r²/(d²+ε)
+// The isosurface (F≈1) forms smooth organic boundaries.
+// Blobs merge when close: their potentials add, pulling the surface together.
+var NB=7;
+var bx=new Float32Array(NB),by=new Float32Array(NB),br=new Float32Array(NB);
+var bax=new Float32Array(NB),bay=new Float32Array(NB);
+var bfx=new Float32Array(NB),bfy=new Float32Array(NB);
+var bpx=new Float32Array(NB),bpy=new Float32Array(NB);
 
-// Block characters by brightness
-var blockChars=['\u00B7','\u2591','\u2592','\u2593','\u2588'];
-
-// Initialize particles spread around the attractor
-var particles=[];
-for(var i=0;i<NUM_PARTICLES;i++){
-  particles.push({
-    x:0.1*(Math.random()-0.5)+1,
-    y:0.1*(Math.random()-0.5)+1,
-    z:0.1*(Math.random()-0.5)+25
-  });
+for(var i=0;i<NB;i++){
+  bx[i]=0.12+Math.random()*0.76;
+  by[i]=0.12+Math.random()*0.76;
+  br[i]=7+Math.random()*6;      // blob radius in grid cells
+  bax[i]=0.09+Math.random()*0.11;
+  bay[i]=0.09+Math.random()*0.11;
+  bfx[i]=0.038+Math.random()*0.055;
+  bfy[i]=0.038+Math.random()*0.055;
+  bpx[i]=Math.random()*Math.PI*2;
+  bpy[i]=Math.random()*Math.PI*2;
 }
 
-// Attractor bounds for projection (approximate Lorenz range)
-// x: roughly -20 to 20, y: -25 to 25, z: 5 to 50
-var xMin=-22,xMax=22,zMin=0,zMax=52;
-
-var cardRect=cardEl.getBoundingClientRect();
-var ccx,ccy,crx,cry;
-function updateCard(){
-  cardRect=cardEl.getBoundingClientRect();
-  ccx=(cardRect.left+cardRect.right)/2/CW;
-  ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  crx=(cardRect.width/2/CW)+3;
-  cry=(cardRect.height/2/CH)+2;
-}
-updateCard();
-var frameCount=0;
+var cbx=new Float32Array(NB),cby=new Float32Array(NB);
 
 function render(now){
-  frameCount++;
-  if(frameCount%60===0)updateCard();
+  var t=now*0.001;
 
-  // Cursor modulates rho
-  var currentRho=rho;
-  if(mOn){
-    currentRho=rho+(mx/W-0.5)*20;
+  for(var i=0;i<NB;i++){
+    cbx[i]=(bx[i]+Math.sin(t*bfx[i]+bpx[i])*bax[i])*COLS;
+    cby[i]=(by[i]+Math.sin(t*bfy[i]+bpy[i])*bay[i])*ROWS;
   }
 
-  // Decay brightness field
-  for(var i=0;i<bright.length;i++) bright[i]*=DECAY;
-
-  // Integrate particles
-  for(var p=0;p<NUM_PARTICLES;p++){
-    var pt=particles[p];
-    for(var s=0;s<SUB_STEPS;s++){
-      var dx=sigma*(pt.y-pt.x)*dt;
-      var dy=(pt.x*(currentRho-pt.z)-pt.y)*dt;
-      var dz=(pt.x*pt.y-beta*pt.z)*dt;
-      pt.x+=dx;pt.y+=dy;pt.z+=dz;
-    }
-
-    // Project to screen: x -> col, z -> row
-    var col=Math.floor(((pt.x-xMin)/(xMax-xMin))*COLS);
-    var row=Math.floor((1-(pt.z-zMin)/(zMax-zMin))*ROWS); // z up, invert for row
-
-    if(col>=0&&col<COLS&&row>=0&&row<ROWS){
-      var idx=row*COLS+col;
-      bright[idx]=Math.min(1,bright[idx]+0.25);
-      // Also light up neighbors slightly for thicker trails
-      if(col>0)bright[idx-1]=Math.min(1,bright[idx-1]+0.08);
-      if(col<COLS-1)bright[idx+1]=Math.min(1,bright[idx+1]+0.08);
-      if(row>0)bright[idx-COLS]=Math.min(1,bright[idx-COLS]+0.06);
-      if(row<ROWS-1)bright[idx+COLS]=Math.min(1,bright[idx+COLS]+0.06);
-    }
-
-    // Re-seed if particle escapes
-    if(Math.abs(pt.x)>100||Math.abs(pt.y)>100||Math.abs(pt.z)>100||isNaN(pt.x)){
-      pt.x=0.1*(Math.random()-0.5)+1;
-      pt.y=0.1*(Math.random()-0.5)+1;
-      pt.z=0.1*(Math.random()-0.5)+25;
-    }
-  }
-
-  // Render
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var idx=row*COLS+col;
-      var b=bright[idx];
-      if(b<0.02)continue;
+      var F=0;
+      for(var i=0;i<NB;i++){
+        var dx=col-cbx[i],dy=row-cby[i];
+        var r=br[i];
+        F+=r*r/(dx*dx+dy*dy+0.5);
+      }
+      // Cursor: adds a warm additional blob
+      if(mOn){
+        var dx=col-mx/CW,dy=row-my/CH;
+        F+=7*7/(dx*dx+dy*dy+0.5);
+      }
+
+      // Brightness: inside blobs = full, surface = glowing edge, outside = falloff
+      var b;
+      if(F>=1.0){
+        // Interior: solid with slight over-brightness at merges
+        b=0.45+Math.min(0.55,F*0.18);
+      }else{
+        // Exterior: smooth falloff with surface glow
+        b=F*F*0.9;
+      }
+
+      // Slow global breathe
+      b*=0.88+0.12*Math.sin(t*0.22);
 
       // Card fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?nd*nd:1;
-      b*=fade;
+      b*=nd<1?nd*nd:1;
 
-      if(b<0.02)continue;
-      b=Math.min(1,b);
+      b=Math.max(0,Math.min(1,b));
+      if(b<0.025)continue;
 
-      // Choose character based on brightness
-      var ci;
-      if(b>0.8)ci=4;
-      else if(b>0.55)ci=3;
-      else if(b>0.35)ci=2;
-      else if(b>0.15)ci=1;
-      else ci=0;
-      var ch=blockChars[ci];
-
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
       ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }

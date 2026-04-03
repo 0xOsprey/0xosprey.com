@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>24 — stage smoke</title>
+<title>24 — spiral galaxy</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -22,191 +22,123 @@ var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
 var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
 ctx.font='8px Courier New';ctx.textBaseline='top';
-var mx=-1,my=-1,mOn=false,pmx=-1,pmy=-1;
-addEventListener('mousemove',function(e){mOn=true;pmx=mx;pmy=my;mx=e.clientX;my=e.clientY;if(pmx<0){pmx=mx;pmy=my;}});
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 
-var chars=' .\u00b7:\u2591\u2592\u2593\u2588';
-var N=COLS*ROWS;
-var density=new Float32Array(N);
-var newDensity=new Float32Array(N);
-var vx=new Float32Array(N);
-var vy=new Float32Array(N);
+var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-function idx(c,r){return r*COLS+c;}
+// Spiral galaxy: flat rotation curve — inner stars orbit faster than outer.
+// Starting from 2 arm seeds, differential rotation winds them into spirals.
+// Cursor warps nearby stars like a gravitational flyby.
+var N=800;
+var pr=new Float32Array(N);    // orbital radius (0–1)
+var ptheta=new Float32Array(N);// initial angle
+var pomega=new Float32Array(N);// angular speed (rad/sec)
+var pz=new Float32Array(N);    // disk thickness offset (for 3D tilt)
+var pbright=new Float32Array(N);
 
-var cardRect=null;
-function getCardRect(){
-var r=cardEl.getBoundingClientRect();
-cardRect={x:r.left,y:r.top,w:r.width,h:r.height};
-}
-getCardRect();
-addEventListener('resize',function(){
-W=innerWidth;H=innerHeight;cvs.width=W;cvs.height=H;
-var newCols=Math.ceil(W/CW)+1,newRows=Math.ceil(H/CH)+1;
-var newN=newCols*newRows;
-density=new Float32Array(newN);
-newDensity=new Float32Array(newN);
-vx=new Float32Array(newN);
-vy=new Float32Array(newN);
-COLS=newCols;ROWS=newRows;N=newN;
-ctx.font='8px Courier New';ctx.textBaseline='top';
-getCardRect();
-});
+// Aspect correction: characters are taller than wide
+var AX=CW/CH; // ≈ 0.48 — scale y contribution so circles look circular
 
-var emitterCols=[0.25,0.5,0.75];
+var CX=COLS/2,CY=ROWS/2;
+var SCALE=Math.min(COLS,ROWS)*0.44; // radius in chars for r=1
 
-function simulate(){
-var c,r,i;
-
-// Emit smoke from bottom
-for(var e=0;e<3;e++){
-var ec=Math.floor(emitterCols[e]*COLS)+(Math.random()*6-3)|0;
-for(var dr=0;dr<3;dr++){
-var er=ROWS-1-dr;
-if(er<0)continue;
-for(var dc=-3;dc<=3;dc++){
-var cc=ec+dc;
-if(cc<0||cc>=COLS)continue;
-var ii=idx(cc,er);
-density[ii]+=0.12*(1-Math.abs(dc)/4);
-vx[ii]+=(Math.random()-0.5)*0.08;
-vy[ii]-=0.01;
-}
-}
+for(var i=0;i<N;i++){
+  var r,theta;
+  var inArm=Math.random()<0.60;
+  if(inArm){
+    r=0.04+Math.random()*0.80;
+    var arm=Math.floor(Math.random()*2); // 2 arms
+    // Log-spiral seed: arm follows θ = θ0 + k·ln(r)
+    theta=arm*Math.PI+(Math.random()-0.5)*0.55+1.8*Math.log(r+0.05);
+  }else{
+    // Smooth background disk
+    r=Math.sqrt(Math.random())*0.85;
+    theta=Math.random()*Math.PI*2;
+  }
+  pr[i]=r;
+  ptheta[i]=theta;
+  // Flat rotation curve: ω = v0/(r + softening)
+  pomega[i]=0.18/(r+0.05);
+  pz[i]=(Math.random()-0.5)*0.06; // thin disk
+  pbright[i]=0.5+Math.random()*0.5;
 }
 
-// Gravity: smoke settles down
-for(i=0;i<N;i++){
-vy[i]+=0.002*density[i];
-}
+var field=new Float32Array(COLS*ROWS);
+var DECAY=0.88;
 
-// Tiny upward wisps in top portion of smoke layer
-var wispThreshold=Math.floor(ROWS*0.6);
-for(r=0;r<wispThreshold;r++){
-for(c=0;c<COLS;c++){
-i=idx(c,r);
-if(density[i]>0.05){
-vy[i]-=0.003*Math.random();
-}
-}
-}
+// Slow tilt oscillation — slight 3D feel
+var TILT_AMP=0.12,TILT_FREQ=0.04;
 
-// Random turbulence
-for(i=0;i<N;i++){
-vx[i]+=(Math.random()-0.5)*0.01;
-vy[i]+=(Math.random()-0.5)*0.005;
-}
+function render(now){
+  var t=now*0.001;
+  var tilt=Math.sin(t*TILT_FREQ)*TILT_AMP;
+  var cosTilt=Math.cos(tilt),sinTilt=Math.sin(tilt);
 
-// Cursor wind force
-if(mOn&&pmx>=0){
-var cvx=(mx-pmx)/CW;
-var cvy=(my-pmy)/CH;
-var mgc=mx/CW,mgr=my/CH;
-var rad=15;
-var r0=Math.max(0,Math.floor(mgr-rad));
-var r1=Math.min(ROWS-1,Math.ceil(mgr+rad));
-var c0=Math.max(0,Math.floor(mgc-rad));
-var c1=Math.min(COLS-1,Math.ceil(mgc+rad));
-for(r=r0;r<=r1;r++){
-for(c=c0;c<=c1;c++){
-var dx=c-mgc,dy=r-mgr;
-var dist=Math.sqrt(dx*dx+dy*dy);
-if(dist<rad){
-var str=(1-dist/rad)*(1-dist/rad);
-i=idx(c,r);
-vx[i]+=cvx*str*0.3;
-vy[i]+=cvy*str*0.3;
-var speed=Math.sqrt(cvx*cvx+cvy*cvy);
-if(speed>0.5){
-density[i]*=(1-str*0.3);
-}
-}
-}
-}
-}
+  // Decay
+  for(var i=0;i<field.length;i++)field[i]*=DECAY;
 
-// Diffusion
-var diff=0.05;
-for(r=0;r<ROWS;r++){
-for(c=0;c<COLS;c++){
-i=idx(c,r);
-var sum=density[i];
-var cnt=1;
-if(c>0){sum+=density[i-1]*diff;cnt+=diff;}
-if(c<COLS-1){sum+=density[i+1]*diff;cnt+=diff;}
-if(r>0){sum+=density[i-COLS]*diff;cnt+=diff;}
-if(r<ROWS-1){sum+=density[i+COLS]*diff;cnt+=diff;}
-newDensity[i]=sum/cnt;
-}
-}
-var tmp=density;density=newDensity;newDensity=tmp;
+  for(var i=0;i<N;i++){
+    var angle=ptheta[i]+pomega[i]*t;
+    var r=pr[i];
+    // 3D projection with slow tilt
+    var x3=r*Math.cos(angle);
+    var y3=r*Math.sin(angle);
+    var z3=pz[i];
+    var xp=x3;
+    var yp=y3*cosTilt+z3*sinTilt;
 
-// Advection
-for(r=0;r<ROWS;r++){
-for(c=0;c<COLS;c++){
-i=idx(c,r);
-var srcC=c-vx[i];
-var srcR=r-vy[i];
-if(srcC<0)srcC=0;if(srcC>COLS-1.001)srcC=COLS-1.001;
-if(srcR<0)srcR=0;if(srcR>ROWS-1.001)srcR=ROWS-1.001;
-var ic=Math.floor(srcC),ir=Math.floor(srcR);
-var fc=srcC-ic,fr=srcR-ir;
-var ic1=ic+1<COLS?ic+1:ic;
-var ir1=ir+1<ROWS?ir+1:ir;
-var d00=density[idx(ic,ir)];
-var d10=density[idx(ic1,ir)];
-var d01=density[idx(ic,ir1)];
-var d11=density[idx(ic1,ir1)];
-newDensity[i]=d00*(1-fc)*(1-fr)+d10*fc*(1-fr)+d01*(1-fc)*fr+d11*fc*fr;
-}
-}
-tmp=density;density=newDensity;newDensity=tmp;
+    // Map to char grid (correct for non-square chars)
+    var col=CX+xp*SCALE;
+    var row=CY+yp*SCALE*AX;
 
-// Decay and velocity damping
-for(i=0;i<N;i++){
-density[i]*=0.997;
-if(density[i]<0.001)density[i]=0;
-if(density[i]>1.5)density[i]=1.5;
-vx[i]*=0.98;
-vy[i]*=0.98;
-}
-}
+    // Cursor gravity: nearby stars are slightly pulled
+    if(mOn){
+      var mdx=(mx/CW)-col,mdy=(my/CH)-row;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<22){
+        col+=mdx/md*(1-md/22)*1.8;
+        row+=mdy/md*(1-md/22)*1.8;
+      }
+    }
 
-function render(){
-simulate();
+    var ci=col|0,ri=row|0;
+    if(ci<1||ci>=COLS-1||ri<1||ri>=ROWS-1)continue;
+    var idx=ri*COLS+ci;
+    var v=pbright[i]*0.12;
+    field[idx]+=v;
+    field[idx-1]+=v*0.3;field[idx+1]+=v*0.3;
+    field[idx-COLS]+=v*0.3;field[idx+COLS]+=v*0.3;
+  }
 
-ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#d4d0c8';
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
 
-var cr=cardRect;
-var ccx=cr.x+cr.w*0.5,ccy=cr.y+cr.h*0.5;
-var crx=cr.w*0.5+CW*3,cry=cr.h*0.5+CH*2;
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
-for(var r=0;r<ROWS;r++){
-for(var c=0;c<COLS;c++){
-var i=idx(c,r);
-var v=density[i];
-if(v>1)v=1;if(v<0)v=0;
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.025)continue;
 
-var px=c*CW,py=r*CH;
-var ndx=(px-ccx)/crx;
-var ndy=(py-ccy)/cry;
-var nd=ndx*ndx+ndy*ndy;
-var fade=nd<1?nd*nd:1;
-v*=fade;
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?nd*nd:1;
+      if(b<0.025)continue;
 
-var ci=Math.floor(v*(chars.length-1));
-if(ci<0)ci=0;if(ci>=chars.length)ci=chars.length-1;
-var ch=chars[ci];
-if(ch!==' ')ctx.fillText(ch,px,py);
-}
-}
-
-pmx=mx;pmy=my;
-requestAnimationFrame(render);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 })();

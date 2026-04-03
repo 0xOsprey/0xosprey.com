@@ -1,126 +1,125 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>cursor orbit</title>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>20 — vibrating membrane</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
-  #bg{position:fixed;inset:0;z-index:0;user-select:none}
-  .r{font:14px/16px 'Courier New',monospace;white-space:pre;height:16px;color:#d4d0c8}
-  .a1{opacity:.06}.a2{opacity:.14}.a3{opacity:.22}.a4{opacity:.32}
-  .a5{opacity:.44}.a6{opacity:.56}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
-  .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
-  .card{pointer-events:auto;text-align:left;padding:0}
-  .prompt{font:13px/1.5 'Courier New',monospace;color:#d4d0c8;text-shadow:0 0 6px #060608,0 0 14px #060608}
-  .links{margin-top:8px}
-  .links a{font:12px/1.6 'Courier New',monospace;color:rgba(212,208,200,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
-  .links a:hover{color:#d4d0c8}
-  .links a::before{content:'> ';color:rgba(212,208,200,.35)}
-</style>
-</head>
-<body>
-<div id="bg"></div>
-<div class="content"><div class="card" id="card">
-  <div class="prompt">Joe Coll</div>
-  <div class="links">
-    <a href="https://x.com/0xOsprey">x.com/0xOsprey</a>
-    <a href="https://github.com/0xOsprey">github.com/0xOsprey</a>
-    <a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a>
-    <a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a>
-  </div>
-</div></div>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
 <script>
 (function(){
-  var CH=16,CW=8.4;
-  var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
-  var FOS=2,FCOLS=COLS*FOS,FROWS=ROWS*FOS;
-  var DECAY=0.86,PN=200;
-  var DIR=["─","╲","│","╱","─","╲","│","╱"];
-  var INT=["·","-","=","+","*","x","#","@"];
-  var mouseX=-1,mouseY=-1,mouseOn=false;
-  document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
-  document.addEventListener('mouseleave',function(){mouseOn=false});
-  document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
-  var cardEl=document.getElementById('card');
-  var iC0=0,iR0=0,iC1=0,iR1=0,iFX0=0,iFY0=0,iFX1=0,iFY1=0;
-  function updIsland(){var r=cardEl.getBoundingClientRect();iC0=Math.floor(r.left/CW)-1;iR0=Math.floor(r.top/CH)-1;iC1=Math.ceil(r.right/CW)+1;iR1=Math.ceil(r.bottom/CH)+1;iFX0=iC0*FOS;iFY0=iR0*FOS;iFX1=iC1*FOS;iFY1=iR1*FOS;}
-  updIsland();
-  var fieldB=new Float32Array(FCOLS*FROWS);
-  var fieldA=new Float32Array(FCOLS*FROWS);
-  function makeStamp(radius,peak){var size=radius*2+1,data=new Float32Array(size*size);for(var y=0;y<size;y++)for(var x=0;x<size;x++){var dx=(x-radius)/radius,dy=(y-radius)/radius,d=Math.sqrt(dx*dx+dy*dy);if(d<1)data[y*size+x]=peak*(1-d*d);}return{data:data,size:size,radius:radius};}
-  var pStamp=makeStamp(12,0.3);
-  var aStamp=makeStamp(16,0.45);
-  var cStamp=makeStamp(22,0.6);
-  function splat(stamp,cx,cy,angle){var r=stamp.radius,x0=Math.round(cx)-r,y0=Math.round(cy)-r;for(var sy=0;sy<stamp.size;sy++){var fy=y0+sy;if(fy<0||fy>=FROWS)continue;for(var sx=0;sx<stamp.size;sx++){var fx=x0+sx;if(fx<0||fx>=FCOLS)continue;var v=stamp.data[sy*stamp.size+sx];var idx=fy*FCOLS+fx;if(v>fieldB[idx])fieldA[idx]=angle;fieldB[idx]+=v;}}}
-  var particles=[];
-  for(var i=0;i<PN;i++){var a=(i/PN)*Math.PI*2,r=Math.min(FCOLS,FROWS)*0.3;particles.push({x:FCOLS/2+Math.cos(a)*r,y:FROWS/2+Math.sin(a)*r,vx:0,vy:0});}
-  function repel(px,py){var M=8,S=0.5;if(px<iFX0-M||px>iFX1+M||py<iFY0-M||py>iFY1+M)return null;var nx=Math.max(iFX0,Math.min(iFX1,px)),ny=Math.max(iFY0,Math.min(iFY1,py));var dx=px-nx,dy=py-ny,dist=Math.sqrt(dx*dx+dy*dy)||0.1;if(px>=iFX0&&px<=iFX1&&py>=iFY0&&py<=iFY1){var tl=px-iFX0,tr=iFX1-px,tt=py-iFY0,tb=iFY1-py,mn=Math.min(tl,tr,tt,tb);if(mn===tl)return{fx:-S*2,fy:0};if(mn===tr)return{fx:S*2,fy:0};if(mn===tt)return{fx:0,fy:-S*2};return{fx:0,fy:S*2};}if(dist>M)return null;var s=S*(1-dist/M);return{fx:(dx/dist)*s,fy:(dy/dist)*s};}
-  var bgEl=document.getElementById('bg');
-  var rowEls=[];
-  for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
-  var fc=0;
-  function render(now){
-    fc++;
-    if(fc%30===0)updIsland();
-    var a1x=Math.cos(now*0.0004)*FCOLS*0.3+FCOLS/2;
-    var a1y=Math.sin(now*0.0007)*FROWS*0.3+FROWS/2;
-    var a2x=Math.cos(now*0.001+Math.PI)*FCOLS*0.25+FCOLS/2;
-    var a2y=Math.sin(now*0.0006+Math.PI)*FROWS*0.25+FROWS/2;
-    
-    var cFX=-200,cFY=-200;
-    if(mouseOn){cFX=(mouseX/innerWidth)*FCOLS;cFY=(mouseY/innerHeight)*FROWS;}
-    for(var i=0;i<fieldB.length;i++)fieldB[i]*=DECAY;
-    for(var iy=Math.max(0,iFY0);iy<Math.min(FROWS,iFY1);iy++)for(var ix=Math.max(0,iFX0);ix<Math.min(FCOLS,iFX1);ix++)fieldB[iy*FCOLS+ix]=0;
-    for(var i=0;i<particles.length;i++){
-      var p=particles[i];
-      var d1x=a1x-p.x,d1y=a1y-p.y,d2x=a2x-p.x,d2y=a2y-p.y;
-      var dist1=Math.sqrt(d1x*d1x+d1y*d1y)||1,dist2=Math.sqrt(d2x*d2x+d2y*d2y)||1;
-      var fx,fy,best=1,minD=dist1;
-      if(dist2<minD){best=2;minD=dist2;}
-      
-      if(mouseOn){var dcx=cFX-p.x,dcy=cFY-p.y,dC=Math.sqrt(dcx*dcx+dcy*dcy)||1;if(dC<minD){best=3;minD=dC;}}
-      if(best===1){fx=(d1x/dist1)*0.18;fy=(d1y/dist1)*0.18;}
-      else if(best===2){fx=(d2x/dist2)*0.06;fy=(d2y/dist2)*0.06;}
-      else if(best===3){
-        var dcx2=cFX-p.x,dcy2=cFY-p.y,dC2=Math.sqrt(dcx2*dcx2+dcy2*dcy2)||1;
-        // Tangential force (perpendicular to radius) + weak radial pull
-        var tangX=-dcy2/dC2, tangY=dcx2/dC2;
-        fx=tangX*0.3+(dcx2/dC2)*0.08;
-        fy=tangY*0.3+(dcy2/dC2)*0.08;}
-      
-      
-      var rp=repel(p.x,p.y);if(rp){fx+=rp.fx;fy+=rp.fy;}
-      p.vx=(p.vx+fx)*0.96+(Math.random()-.5)*0.16;
-      p.vy=(p.vy+fy)*0.96+(Math.random()-.5)*0.16;
-      p.x+=p.vx;p.y+=p.vy;
-      if(p.x<0)p.x+=FCOLS;if(p.x>=FCOLS)p.x-=FCOLS;
-      if(p.y<0)p.y+=FROWS;if(p.y>=FROWS)p.y-=FROWS;
-      splat(pStamp,p.x,p.y,Math.atan2(p.vy,p.vx));
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#%@\u2588';
+
+// 2D wave equation on a rectangular membrane:
+// ∂²u/∂t² = c²∇²u
+// Discretised with finite differences. Waves travel, reflect off walls,
+// and interfere — forming standing wave patterns and Chladni-like nodes.
+// Cursor acts as a continuous harmonic source, injecting circular waves.
+var N=COLS*ROWS;
+var u=new Float32Array(N);    // current displacement
+var up=new Float32Array(N);   // previous displacement
+var un=new Float32Array(N);   // next displacement
+
+var C2=0.38*0.38;  // c²Δt²/Δx² — must be < 0.5 for stability
+var DAMP=0.9992;   // very gentle damping per step
+var SPF=2;         // simulation steps per render frame
+
+// Seed with a few impulses to start interesting reflections
+(function seed(){
+  var seeds=[[Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8],
+             [Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5],
+             [Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2]];
+  for(var s=0;s<seeds.length;s++){
+    var sc=seeds[s][0],sr=seeds[s][1],sa=seeds[s][2];
+    for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
+      var r=sr+dr,c=sc+dc;
+      if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
+      var d=Math.sqrt(dr*dr+dc*dc);
+      if(d<4.5)u[r*COLS+c]=sa*(1-d/4.5);
     }
-    splat(aStamp,a1x,a1y,0);splat(aStamp,a2x,a2y,Math.PI);
-    if(mouseOn)splat(cStamp,cFX,cFY,0);
-    for(var row=0;row<ROWS;row++){
-      var line='';
-      for(var col=0;col<COLS;col++){
-        if(row>=iR0&&row<iR1&&col>=iC0&&col<iC1){line+=' ';continue;}
-        var fy=row*FOS,fx=col*FOS,sum=0,aSum=0,aW=0;
-        for(var sy=0;sy<FOS;sy++)for(var sx=0;sx<FOS;sx++){var idx=(fy+sy)*FCOLS+(fx+sx);sum+=fieldB[idx];if(fieldB[idx]>0.01){aSum+=fieldA[idx]*fieldB[idx];aW+=fieldB[idx];}}
-        var avg=sum/(FOS*FOS);
-        if(avg<0.03){line+=' ';continue;}
-        var angle=aW>0?aSum/aW:0;
-        var ai8=((Math.round(angle/(Math.PI/4))%8)+8)%8;
-        var ch=avg>0.5?INT[Math.min(INT.length-1,(avg*INT.length)|0)]:DIR[ai8];
-        var alphaIdx=Math.max(1,Math.min(10,Math.round(avg*10)));
-        line+='<span class="a'+alphaIdx+'">'+ch+'</span>';
-      }
-      rowEls[row].innerHTML=line;
-    }
-    requestAnimationFrame(render);
   }
-  requestAnimationFrame(render);
 })();
-</script>
-</body>
-</html>
+
+var frameT=0;
+
+function waveStep(){
+  for(var r=1;r<ROWS-1;r++){
+    var rC=r*COLS;
+    for(var c=1;c<COLS-1;c++){
+      var i=rC+c;
+      var laplacian=u[i-1]+u[i+1]+u[i-COLS]+u[i+COLS]-4*u[i];
+      un[i]=(2*u[i]-up[i]+C2*laplacian)*DAMP;
+    }
+  }
+  // Absorbing boundaries: damp at edges to kill reflections softly
+  for(var c=0;c<COLS;c++){un[c]=un[COLS+c]*0.5;un[(ROWS-1)*COLS+c]=un[(ROWS-2)*COLS+c]*0.5;}
+  for(var r=0;r<ROWS;r++){un[r*COLS]=un[r*COLS+1]*0.5;un[r*COLS+COLS-1]=un[r*COLS+COLS-2]*0.5;}
+  // Swap buffers
+  var tmp=up;up=u;u=un;un=tmp;
+}
+
+function render(now){
+  frameT++;
+
+  // Cursor: continuous oscillating point source
+  if(mOn){
+    var mc=mx/CW|0,mr=my/CH|0;
+    if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
+      u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
+    }
+  }
+
+  for(var s=0;s<SPF;s++)waveStep();
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var v=u[row*COLS+col];
+      // Only show positive displacement (wave crests glow)
+      var b=Math.max(0,v)*1.1;
+      b=Math.min(1,b);
+      if(b<0.025)continue;
+
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?nd*nd:1;
+      if(b<0.025)continue;
+
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

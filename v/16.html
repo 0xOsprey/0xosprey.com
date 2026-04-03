@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>16 — lissajous curves</title>
+<title>16 — flow field</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -27,55 +27,106 @@ addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
-var curves=[
-{fx:2,fy:3,px:0,py:Math.PI/4},
-{fx:3,fy:4,px:Math.PI/3,py:0},
-{fx:4,fy:5,px:0,py:Math.PI/6},
-{fx:5,fy:7,px:Math.PI/5,py:Math.PI/3},
-{fx:7,fy:8,px:Math.PI/7,py:0}
-];
+
+var RAMP=' .\u00B7:;=+*#';
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
+
+// Noise flow field: particles follow a slowly-evolving vector field
+// Field angle computed from layered sine waves (smooth, Perlin-like)
+// Particles leave trails that decay, painting organic flowing fabric.
+var N=520;
+var px=new Float32Array(N),py=new Float32Array(N);
+for(var i=0;i<N;i++){px[i]=Math.random()*W;py[i]=Math.random()*H;}
+
+var SPEED=1.75,DECAY=0.89;
 var field=new Float32Array(COLS*ROWS);
-var ramp=' .\u00b7:\u2591\u2592\u2593\u2588';
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+
+// Smooth multi-octave angle field — evolves slowly over time
+function flowAngle(x,y,t){
+  var s=0.030;
+  return(Math.sin(x*s*1.00+y*s*0.40+t*0.160)*0.38
+        +Math.sin(x*s*0.55-y*s*1.05+t*0.110)*0.28
+        +Math.sin(x*s*1.35+y*s*0.85-t*0.130)*0.20
+        +Math.sin(x*s*0.28+y*s*1.55+t*0.095)*0.16
+        +Math.sin((x+y)*s*0.75+t*0.200)*0.18
+        +Math.sin((x-y)*s*0.60-t*0.140)*0.14)*Math.PI*2.8;
+}
+
 function render(now){
-requestAnimationFrame(render);
-var t=now*0.0006;
-for(var i=0;i<field.length;i++)field[i]*=0.95;
-for(var ci=0;ci<curves.length;ci++){
-var c=curves[ci];
-var fx=c.fx;
-if(ci===0&&mOn){
-fx=c.fx+(mx/W-0.5)*2;
-}
-for(var s=0;s<200;s++){
-var st=t+s*0.0314;
-var x=Math.sin(fx*st+c.px)*COLS*0.4+COLS/2;
-var y=Math.sin(c.fy*st+c.py)*ROWS*0.4+ROWS/2;
-var ix=Math.floor(x),iy=Math.floor(y);
-if(ix>=0&&ix<COLS&&iy>=0&&iy<ROWS){
-var idx=iy*COLS+ix;
-field[idx]=Math.min(1,field[idx]+0.15);
-if(ix+1<COLS)field[idx+1]=Math.min(1,field[idx+1]+0.05);
-if(ix-1>=0)field[idx-1]=Math.min(1,field[idx-1]+0.05);
-if(iy+1<ROWS)field[(iy+1)*COLS+ix]=Math.min(1,field[(iy+1)*COLS+ix]+0.05);
-if(iy-1>=0)field[(iy-1)*COLS+ix]=Math.min(1,field[(iy-1)*COLS+ix]+0.05);
-}
-}
-}
-ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
-var cardRect=cardEl.getBoundingClientRect();
-var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
-for(var row=0;row<ROWS;row++){
-for(var col=0;col<COLS;col++){
-var v=field[row*COLS+col];
-var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry,nd=ndx*ndx+ndy*ndy;
-var fade=nd<1?nd*nd:1;
-v*=fade;
-v=Math.max(0,Math.min(1,v));
-var ri=Math.floor(v*(ramp.length-1)+0.5);
-ctx.fillText(ramp[ri],col*CW,row*CH);
-}
-}
+  var t=now*0.001;
+
+  // Decay persistence fields
+  for(var i=0;i<field.length;i++){
+    field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;
+  }
+
+  // Move particles along flow field
+  for(var i=0;i<N;i++){
+    var a=flowAngle(px[i],py[i],t);
+    var vx=Math.cos(a)*SPEED;
+    var vy=Math.sin(a)*SPEED;
+
+    // Cursor creates a vortex: particles swirl around it
+    if(mOn){
+      var mdx=px[i]-mx,mdy=py[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<180){
+        var mf=(1-md/180)*(1-md/180)*2.2;
+        // Tangential swirl (perpendicular to radius)
+        vx+=-mdy/md*mf;
+        vy+= mdx/md*mf;
+      }
+    }
+
+    px[i]+=vx;py[i]+=vy;
+    // Toroidal wrap
+    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
+    if(py[i]<0)py[i]+=H;else if(py[i]>=H)py[i]-=H;
+
+    // Splat onto density+direction fields
+    var col=px[i]/CW|0,row=py[i]/CH|0;
+    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
+    var idx=row*COLS+col,v=0.32;
+    field[idx]+=v;dfx[idx]+=vx*v;dfy[idx]+=vy*v;
+    if(col>0)      {field[idx-1]   +=v*0.18;dfx[idx-1]   +=vx*v*0.18;dfy[idx-1]   +=vy*v*0.18;}
+    if(col<COLS-1) {field[idx+1]   +=v*0.18;dfx[idx+1]   +=vx*v*0.18;dfy[idx+1]   +=vy*v*0.18;}
+    if(row>0)      {field[idx-COLS]+=v*0.18;dfx[idx-COLS]+=vx*v*0.18;dfy[idx-COLS]+=vy*v*0.18;}
+    if(row<ROWS-1) {field[idx+COLS]+=v*0.18;dfx[idx+COLS]+=vx*v*0.18;dfy[idx+COLS]+=vy*v*0.18;}
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var idx=row*COLS+col;
+      var b=Math.min(1,field[idx]);
+      if(b<0.03)continue;
+
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?nd*nd:1;
+      if(b<0.03)continue;
+
+      var ch;
+      if(b>0.48){
+        ch=RAMP[Math.min(RAMP.length-1,(b*(RAMP.length-1))|0)];
+      }else{
+        var angle=Math.atan2(dfy[idx],dfx[idx]);
+        var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
+        ch=DIRS[di];
+      }
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 })();

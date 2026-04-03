@@ -96,8 +96,11 @@ f.addEventListener('load',function(){
     base.target='_blank';
     f.contentDocument.head.appendChild(base);
     f.contentWindow.addEventListener('keydown',handleKey);
+    // Show variant name from page title (format: "14 — spinning donut")
+    var title=f.contentDocument.title||'';
+    var namePart=title.replace(/^\d+\s*[—-]\s*/,'');
+    document.getElementById('bv').textContent=namePart?'· '+namePart:'';
   }catch(e){}
-  // Re-apply current theme to new iframe content
   setTheme(ti);
 });
 
