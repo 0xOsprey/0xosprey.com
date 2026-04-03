@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>13 — voronoi cells</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#e8e0d8}
+.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+// 12 seed points with sinusoidal motion
+var NUM_SEEDS=12;
+var seeds=[];
+for(var i=0;i<NUM_SEEDS;i++){
+  seeds.push({
+    cx:0.1+0.8*Math.random(), cy:0.1+0.8*Math.random(),
+    ax:0.04+0.1*Math.random(), ay:0.04+0.1*Math.random(),
+    sx:0.15+0.35*Math.random(), sy:0.15+0.35*Math.random(),
+    px:Math.random()*Math.PI*2, py:Math.random()*Math.PI*2
+  });
+}
+
+// Edge characters
+var edgeChars=['\u2502','\u2500','\u2571','\u2572','\u253C','\u2534','\u252C','\u2524','\u251C','+','*','\u00B7'];
+
+// Fill characters per seed (different visual per cell region)
+var fillSets=[
+  ['\u00B7',' ',' '],
+  ['.',' ',' '],
+  [',',' ',' '],
+  ['\u00B7','.',' '],
+  [':',' ',' '],
+  ['\u2022',' ',' '],
+  ['-',' ',' '],
+  ['~',' ',' '],
+  ['\u00B7',',',' '],
+  ['.',' ',' '],
+  ['\u2022',' ',' '],
+  ['\u00B7',' ',' ']
+];
+
+// Pseudo-random based on position for stable fill variation
+function cellHash(col,row){
+  var n=col*374761393+row*668265263;
+  n=(n^(n>>13))*1274126177;
+  return((n^(n>>16))&0x7fffffff)/0x7fffffff;
+}
+
+var cardRect=cardEl.getBoundingClientRect();
+var ccx,ccy,crx,cry;
+function updateCard(){
+  cardRect=cardEl.getBoundingClientRect();
+  ccx=(cardRect.left+cardRect.right)/2/CW;
+  ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  crx=(cardRect.width/2/CW)+3;
+  cry=(cardRect.height/2/CH)+2;
+}
+updateCard();
+var frameCount=0;
+
+// Precompute distance threshold scaled to cell dimensions
+var EDGE_THRESHOLD=1.8;
+
+function render(now){
+  frameCount++;
+  if(frameCount%60===0)updateCard();
+  var t=now*0.001;
+
+  // Compute current seed positions in cell coordinates
+  var sx=new Float32Array(NUM_SEEDS+1);
+  var sy=new Float32Array(NUM_SEEDS+1);
+  var numActive=NUM_SEEDS;
+  for(var i=0;i<NUM_SEEDS;i++){
+    var s=seeds[i];
+    sx[i]=(s.cx+Math.sin(t*s.sx+s.px)*s.ax)*COLS;
+    sy[i]=(s.cy+Math.sin(t*s.sy+s.py)*s.ay)*ROWS;
+  }
+
+  // Add cursor as extra seed
+  if(mOn){
+    sx[NUM_SEEDS]=mx/CW;
+    sy[NUM_SEEDS]=my/CH;
+    numActive=NUM_SEEDS+1;
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      // Card fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      if(fade<0.02)continue;
+
+      // Find closest and second closest seed
+      // Weight column distance by CW/CH ratio for aspect-correct cells
+      var aspect=CW/CH;
+      var closest=-1,closestDist=1e9,secondDist=1e9;
+      for(var i=0;i<numActive;i++){
+        var dx=(col-sx[i])*aspect;
+        var dy=row-sy[i];
+        var d=dx*dx+dy*dy; // use squared for comparison
+        if(d<closestDist){
+          secondDist=closestDist;
+          closestDist=d;
+          closest=i;
+        } else if(d<secondDist){
+          secondDist=d;
+        }
+      }
+
+      // Edge detection: difference of sqrt distances
+      var d1=Math.sqrt(closestDist);
+      var d2=Math.sqrt(secondDist);
+      var edgeDelta=d2-d1;
+
+      var ch,brightness;
+      if(edgeDelta<EDGE_THRESHOLD){
+        // Edge cell
+        var edgeIdx=Math.floor(cellHash(col,row)*edgeChars.length);
+        ch=edgeChars[edgeIdx];
+        // Brighter at the very edge, fade in and out
+        brightness=0.35+0.5*(1-edgeDelta/EDGE_THRESHOLD);
+      } else {
+        // Fill cell
+        var seedIdx=closest%fillSets.length;
+        var fillSet=fillSets[seedIdx];
+        var fillPick=Math.floor(cellHash(col+7,row+13)*fillSet.length);
+        ch=fillSet[fillPick];
+        if(ch===' ')continue;
+        // Subtle fill, brighter near seed center
+        brightness=0.06+0.12*(1-d1/80);
+        if(brightness<0.03)continue;
+      }
+
+      brightness*=fade;
+      if(brightness<0.02)continue;
+      brightness=Math.min(1,brightness);
+
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>6 — dissolving text</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+// --- Dissolving Text Particles ---
+var NUM=1800;
+var blocks=['█','▓','▒','░','·'];
+
+// Build text target positions by rendering "JOE COLL" to an offscreen canvas
+var textCanvas=document.createElement('canvas');
+var textCtx=textCanvas.getContext('2d');
+var fontSize=Math.min(Math.floor(W/8),120);
+textCanvas.width=W;textCanvas.height=H;
+textCtx.fillStyle='#fff';
+textCtx.font='bold '+fontSize+'px Courier New';
+textCtx.textAlign='center';textCtx.textBaseline='middle';
+var lo=fontSize*1.05;
+textCtx.fillText('JOE',W/2,H/2-lo);
+textCtx.fillText('COLL',W/2,H/2+lo);
+
+var imgData=textCtx.getImageData(0,0,W,H).data;
+var textPositions=[];
+// Sample positions where the text exists
+var step=Math.max(3,Math.floor(Math.sqrt(W*H/20000)));
+for(var yy=0;yy<H;yy+=step){
+  for(var xx=0;xx<W;xx+=step){
+    var idx=(yy*W+xx)*4;
+    if(imgData[idx+3]>128){
+      textPositions.push({x:xx,y:yy});
+    }
+  }
+}
+
+// Particles
+var px=new Float32Array(NUM);
+var py=new Float32Array(NUM);
+var vx=new Float32Array(NUM);
+var vy=new Float32Array(NUM);
+var tx=new Float32Array(NUM);
+var ty=new Float32Array(NUM);
+
+for(var i=0;i<NUM;i++){
+  px[i]=Math.random()*W;
+  py[i]=Math.random()*H;
+  vx[i]=0;vy[i]=0;
+  var ti=i%textPositions.length;
+  tx[i]=textPositions[ti].x;
+  ty[i]=textPositions[ti].y;
+}
+
+// Brightness field
+var field=new Float32Array(COLS*ROWS);
+
+// Dissolve cycle
+var dissolvePhase=0; // 0..1, 0=formed, 1=fully dissolved
+var dissolveDir=1; // 1=dissolving, -1=forming
+var dissolveSpeed=0.0008;
+var cycleTimer=0;
+var formDuration=4000;
+var dissolveDuration=2000;
+var lastTime=0;
+
+// Simple noise for particle jitter
+function noise1(t){return Math.sin(t*1.3)*0.5+Math.sin(t*2.7+1.1)*0.3+Math.sin(t*4.1+2.3)*0.2;}
+
+function render(time){
+  var dt=lastTime?Math.min(time-lastTime,50):16;
+  lastTime=time;
+
+  cycleTimer+=dt;
+  if(dissolveDir===1){
+    dissolvePhase+=dissolveSpeed*dt;
+    if(dissolvePhase>=1){dissolvePhase=1;dissolveDir=0;cycleTimer=0;}
+    if(dissolveDir===0&&cycleTimer>500){dissolveDir=-1;cycleTimer=0;}
+  }else if(dissolveDir===-1){
+    dissolvePhase-=dissolveSpeed*0.6*dt;
+    if(dissolvePhase<=0){dissolvePhase=0;dissolveDir=0;cycleTimer=0;}
+    if(dissolveDir===0&&cycleTimer>3000){dissolveDir=1;cycleTimer=0;}
+  }else{
+    // Waiting
+    if(dissolvePhase>=1&&cycleTimer>800){dissolveDir=-1;cycleTimer=0;}
+    if(dissolvePhase<=0&&cycleTimer>3500){dissolveDir=1;cycleTimer=0;}
+  }
+
+  var spring=0.03*(1-dissolvePhase*0.95);
+  var noiseAmt=dissolvePhase*3.5;
+  var damping=0.88;
+  var t=time*0.001;
+
+  // Update particles
+  for(var i=0;i<NUM;i++){
+    var dx=tx[i]-px[i];
+    var dy=ty[i]-py[i];
+    // Spring toward target
+    vx[i]+=dx*spring;
+    vy[i]+=dy*spring;
+    // Noise displacement
+    var ni=i*0.01+t;
+    vx[i]+=noise1(ni)*noiseAmt;
+    vy[i]+=noise1(ni+100)*noiseAmt;
+    // Mouse repulsion
+    if(mOn){
+      var mdx=px[i]-mx;
+      var mdy=py[i]-my;
+      var md=mdx*mdx+mdy*mdy;
+      var repelR=120;
+      if(md<repelR*repelR&&md>1){
+        var mf=1-Math.sqrt(md)/repelR;
+        var invD=1/Math.sqrt(md);
+        vx[i]+=mdx*invD*mf*8;
+        vy[i]+=mdy*invD*mf*8;
+      }
+    }
+    vx[i]*=damping;
+    vy[i]*=damping;
+    px[i]+=vx[i];
+    py[i]+=vy[i];
+    // Wrap
+    if(px[i]<0)px[i]+=W;if(px[i]>=W)px[i]-=W;
+    if(py[i]<0)py[i]+=H;if(py[i]>=H)py[i]-=H;
+  }
+
+  // Clear brightness field
+  for(var j=0;j<field.length;j++)field[j]=0;
+
+  // Splat particles into brightness field
+  for(var i=0;i<NUM;i++){
+    var col=Math.floor(px[i]/CW);
+    var row=Math.floor(py[i]/CH);
+    if(col>=0&&col<COLS&&row>=0&&row<ROWS){
+      field[row*COLS+col]+=0.4;
+      // Slight bleed to neighbors
+      if(col>0)field[row*COLS+col-1]+=0.1;
+      if(col<COLS-1)field[row*COLS+col+1]+=0.1;
+      if(row>0)field[(row-1)*COLS+col]+=0.1;
+      if(row<ROWS-1)field[(row+1)*COLS+col]+=0.1;
+    }
+  }
+
+  // Render
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  // Card fade zone
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=field[row*COLS+col];
+      if(b<0.05)continue;
+      if(b>1)b=1;
+
+      // Card fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry,nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      b*=fade;
+
+      if(b<0.05)continue;
+      var bi=Math.min(Math.floor((1-b)*blocks.length),blocks.length-1);
+      var alpha=0.15+b*0.85;
+      ctx.globalAlpha=alpha;
+      ctx.fillText(blocks[bi],col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

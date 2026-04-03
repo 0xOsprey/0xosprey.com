@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>17 — wormhole tunnel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#e8e0d8}
+.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#%@\u2588';
+var PI2=Math.PI*2;
+var startTime=0;
+
+// Smooth cursor tracking
+var smx=W/2,smy=H/2;
+
+function render(now){
+  if(!startTime)startTime=now;
+  var t=(now-startTime)*0.001;
+
+  // Smooth cursor follow
+  if(mOn){
+    smx+=(mx-smx)*0.04;
+    smy+=(my-smy)*0.04;
+  }else{
+    smx+=(W/2-smx)*0.01;
+    smy+=(H/2-smy)*0.01;
+  }
+
+  // Vanishing point shifts strongly with cursor
+  var baseCX=COLS/2,baseCY=ROWS/2;
+  var pull=mOn?0.65:0.0;
+  var cx=baseCX+((smx/CW)-baseCX)*pull;
+  var cy=baseCY+((smy/CH)-baseCY)*pull;
+
+  var maxR=Math.sqrt(COLS*COLS+ROWS*ROWS)*0.5;
+
+  // Subtle rotation over time
+  var rot=t*0.07;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  // Tunnel speed — slow and meditative
+  var speed=t*0.32;
+
+  // Fewer segments = softer, less jagged walls
+  var segments=8;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var dx=col-cx;
+      var dy=(row-cy)*1.6; // Aspect correction for perspective
+      var r=Math.sqrt(dx*dx+dy*dy);
+      if(r<0.3)continue; // Dead center is dark
+
+      var angle=Math.atan2(dy,dx)+rot;
+
+      // Depth: inverse of radius creates tunnel perspective
+      var depth=maxR/r;
+
+      // Scrolling rings using depth offset by time
+      var ring=depth*3.5-speed;
+      // Create ring bands using fractional part
+      var ringFrac=ring-Math.floor(ring);
+      // Soft ring pattern: smooth glow bands instead of sharp lightning edges
+      var ringPattern=1.0-Math.abs(ringFrac-0.5)*2.0;
+      // No squaring — keep it soft/rounded
+
+      // Angular segments for the tunnel walls
+      var segAngle=((angle/PI2)*segments);
+      segAngle=segAngle-Math.floor(segAngle);
+      // Soft wall lines
+      var segEdge=Math.abs(segAngle-0.5)*2.0;
+      var segPattern=segEdge*0.5+0.5;
+
+      // Combine
+      var brightness=Math.max(ringPattern*0.7, ringPattern*segPattern);
+
+      // Edge brightness: center is dark void, edges are bright
+      var edgeFactor=Math.min(1,r/maxR*2.2);
+      edgeFactor=edgeFactor*edgeFactor;
+      brightness*=edgeFactor;
+
+      // Depth-based intensity (closer rings = brighter)
+      var depthBright=Math.min(1,depth*0.18);
+      brightness*=depthBright;
+
+      // Add pulsing wave through the tunnel
+      var pulse=Math.sin(depth*1.2-t*0.7)*0.09+0.91;
+      brightness*=pulse;
+
+      // Cursor glow: brighten area near cursor
+      if(mOn){
+        var cdx=(col*CW-mx)/W;
+        var cdy=(row*CH-my)/H;
+        var cd=Math.sqrt(cdx*cdx+cdy*cdy);
+        if(cd<0.18){
+          brightness+=0.35*(1-cd/0.18);
+        }
+      }
+
+      // Card fade - soft elliptical
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      brightness*=fade;
+
+      if(brightness<0.03)continue;
+      brightness=Math.min(1,brightness);
+
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>25 — watching eyes</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#fff}
+.links a::before{content:'> ';color:rgba(255,255,255,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=W/2,my=H/2,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;=+*#%@\u2588';
+var ER=0.6;
+var asp=W/H;
+
+function sdSphere(px,py,pz,r){return Math.sqrt(px*px+py*py+pz*pz)-r;}
+
+// Smooth cursor tracking
+var smx=W/2,smy=H/2;
+
+function render(now){
+  var t=now*.001;
+
+  // Smooth follow
+  if(mOn){smx+=(mx-smx)*0.06;smy+=(my-smy)*0.06;}
+  else{smx+=(W/2-smx)*0.01;smy+=(H/2-smy)*0.01;}
+
+  // Blink every ~5 seconds
+  var bc=t%5;
+  var bs=1;
+  if(bc>4.6){var bt=(bc-4.6)/0.4;bs=1-Math.sin(bt*Math.PI)*.85;}
+
+  // Dynamic eye positions — orbit and follow cursor
+  var driftX=Math.sin(t*.6)*.4;
+  var driftY=Math.cos(t*.4)*.25;
+  if(mOn){
+    var cx=(smx/W-.5)*2;
+    var cy=-(smy/H-.5)*2;
+    driftX=driftX*.3+cx*.5;
+    driftY=driftY*.3+cy*.4;
+  }
+
+  var sep=0.7;
+  var e1x=-sep+driftX,e1y=driftY,e1z=0;
+  var e2x=sep+driftX,e2y=driftY,e2z=0;
+
+  // Pupil look target (further ahead than drift)
+  var lookX=mOn?(smx/W-.5)*6:Math.sin(t*.3)*.2;
+  var lookY=mOn?-(smy/H-.5)*6:Math.cos(t*.5)*.1;
+  var lookZ=-3;
+
+  // Light from above-front, cursor influenced
+  var lx=mOn?(smx/W-.5):.3;
+  var ly=mOn?-(smy/H-.5)*0.8:.5;
+  var lz=.6;
+  var ll=Math.sqrt(lx*lx+ly*ly+lz*lz);lx/=ll;ly/=ll;lz/=ll;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
+    var u=(col/COLS-.5)*2*asp,v2=(row/ROWS-.5)*2;
+    var rdx=u,rdy=-v2,rdz=-1.5;
+    var rl=Math.sqrt(rdx*rdx+rdy*rdy+rdz*rdz);rdx/=rl;rdy/=rl;rdz/=rl;
+    var rox=0,roy=0,roz=4;
+    var totalD=0,hit=false;
+    for(var s=0;s<40;s++){
+      var px=rox+rdx*totalD,py=roy+rdy*totalD,pz=roz+rdz*totalD;
+      var d=Math.min(
+        sdSphere(px-e1x,(py-e1y)/bs,pz-e1z,ER),
+        sdSphere(px-e2x,(py-e2y)/bs,pz-e2z,ER)
+      );
+      if(d<.01){hit=true;break;}
+      totalD+=d;if(totalD>10)break;
+    }
+    if(!hit)continue;
+
+    var px=rox+rdx*totalD,py=roy+rdy*totalD,pz=roz+rdz*totalD;
+
+    // Which eye?
+    var d1=sdSphere(px-e1x,(py-e1y)/bs,pz-e1z,ER);
+    var d2=sdSphere(px-e2x,(py-e2y)/bs,pz-e2z,ER);
+    var ex=d1<d2?e1x:e2x,ey=d1<d2?e1y:e2y,ez=d1<d2?e1z:e2z;
+
+    // Analytical normal (with blink squish)
+    var nx=px-ex,ny=(py-ey)/(bs*bs),nz=pz-ez;
+    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;nx/=nl;ny/=nl;nz/=nl;
+
+    // Look direction for pupil
+    var lkx=lookX-ex,lky=lookY-ey,lkz=lookZ-ez;
+    var lkl=Math.sqrt(lkx*lkx+lky*lky+lkz*lkz)||1;
+    lkx/=lkl;lky/=lkl;lkz/=lkl;
+
+    var eyeDot=nx*lkx+ny*lky+nz*lkz;
+
+    var bright;
+    if(eyeDot>.9){
+      // Pupil — dark
+      bright=.04;
+    }else if(eyeDot>.7){
+      // Iris — gradient from dark to medium
+      var iT=(eyeDot-.7)/(.9-.7);
+      bright=.28*(1-iT*.85);
+    }else{
+      // Sclera — diffuse + specular
+      var diff=Math.max(0,nx*lx+ny*ly+nz*lz);
+      bright=.25+diff*.65;
+      // Specular
+      var ref=2*(nx*lx+ny*ly+nz*lz);
+      var rx=ref*nx-lx,ry=ref*ny-ly,rz=ref*nz-lz;
+      var spec=Math.pow(Math.max(0,rx*(-rdx)+ry*(-rdy)+rz*(-rdz)),20);
+      bright+=spec*.35;
+    }
+    bright=Math.min(1,Math.max(0,bright));
+
+    // Elliptical card fade
+    var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+    var nd=ndx*ndx+ndy*ndy;
+    var fade=nd<1?nd*nd:1;
+    bright*=fade;
+
+    var ci=Math.min(RAMP.length-1,(bright*RAMP.length)|0);
+    var ch=RAMP[ci];if(ch===' ')continue;
+    ctx.globalAlpha=bright;ctx.fillText(ch,col*CW,row*CH);
+  }
+  ctx.globalAlpha=1;requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

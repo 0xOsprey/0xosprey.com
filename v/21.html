@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>21 — reaction diffusion</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#e8e0d8}
+.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+var RAMP=' .\u00B7:;\u2591\u2592\u2593\u2588';
+var N=COLS*ROWS;
+
+// Two chemicals: U and V, double-buffered
+var U=new Float32Array(N);
+var V=new Float32Array(N);
+var U2=new Float32Array(N);
+var V2=new Float32Array(N);
+
+// Parameters — coral/spot pattern
+var Du=0.21,Dv=0.1,f=0.035,k=0.065;
+
+// Initialize: U=1 everywhere, V=0, then seed patches
+for(var i=0;i<N;i++){U[i]=1;V[i]=0;}
+
+// Seed several random rectangular patches of V=1
+function seedPatch(cx,cy,hw,hh){
+  for(var dy=-hh;dy<=hh;dy++){
+    for(var dx=-hw;dx<=hw;dx++){
+      var c=cx+dx,r=cy+dy;
+      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
+        var idx=r*COLS+c;
+        V[idx]=1;
+        U[idx]=0.5;
+      }
+    }
+  }
+}
+
+var numSeeds=8;
+for(var s=0;s<numSeeds;s++){
+  var sx=Math.floor(Math.random()*COLS*0.6+COLS*0.2);
+  var sy=Math.floor(Math.random()*ROWS*0.6+ROWS*0.2);
+  var sw=Math.floor(Math.random()*4)+2;
+  var sh=Math.floor(Math.random()*3)+1;
+  seedPatch(sx,sy,sw,sh);
+}
+
+var STEPS_PER_FRAME=6;
+
+function simulate(){
+  for(var step=0;step<STEPS_PER_FRAME;step++){
+    for(var r=0;r<ROWS;r++){
+      for(var c=0;c<COLS;c++){
+        var i=r*COLS+c;
+        // 5-point stencil Laplacian with wrapping
+        var up=r>0?(r-1)*COLS+c:(ROWS-1)*COLS+c;
+        var dn=r<ROWS-1?(r+1)*COLS+c:c;
+        var lt=c>0?r*COLS+c-1:r*COLS+COLS-1;
+        var rt=c<COLS-1?r*COLS+c+1:r*COLS;
+
+        var lapU=U[up]+U[dn]+U[lt]+U[rt]-4*U[i];
+        var lapV=V[up]+V[dn]+V[lt]+V[rt]-4*V[i];
+
+        var u=U[i],v=V[i];
+        var uvv=u*v*v;
+        U2[i]=u+Du*lapU-uvv+f*(1-u);
+        V2[i]=v+Dv*lapV+uvv-(f+k)*v;
+
+        // Clamp
+        if(U2[i]<0)U2[i]=0;if(U2[i]>1)U2[i]=1;
+        if(V2[i]<0)V2[i]=0;if(V2[i]>1)V2[i]=1;
+      }
+    }
+    // Swap buffers
+    var tmpU=U;U=U2;U2=tmpU;
+    var tmpV=V;V=V2;V2=tmpV;
+
+    // Cursor seeds V during simulation steps
+    if(mOn){
+      var mcol=Math.round(mx/CW),mrow=Math.round(my/CH);
+      var rad=4;
+      for(var dr=-rad;dr<=rad;dr++){
+        for(var dc=-rad;dc<=rad;dc++){
+          if(dr*dr+dc*dc>rad*rad)continue;
+          var rr=mrow+dr,cc=mcol+dc;
+          if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS){
+            var idx=rr*COLS+cc;
+            V[idx]=1;
+            U[idx]=0.5;
+          }
+        }
+      }
+    }
+  }
+}
+
+function render(){
+  simulate();
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var i=row*COLS+col;
+      var brightness=V[i];
+
+      // Card elliptical fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+      brightness*=fade;
+
+      if(brightness<0.03)continue;
+      brightness=Math.min(1,brightness);
+
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>

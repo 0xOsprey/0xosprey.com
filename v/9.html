@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>9 — metaballs</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.card{pointer-events:auto;text-align:left;padding:0}
+.prompt{font:16px/1.5 'Courier New',monospace;color:#e8e0d8;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links{margin-top:8px}
+.links a{font:12px/1.6 'Courier New',monospace;color:rgba(232,224,216,.7);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px #060608,0 0 14px #060608}
+.links a:hover{color:#e8e0d8}
+.links a::before{content:'> ';color:rgba(232,224,216,.35)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+var cardEl=document.getElementById('card');
+cardEl.innerHTML='<div class="prompt">Joe Coll</div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+
+// 6 metaballs with sinusoidal orbits
+var NUM_BALLS=6;
+var balls=[];
+for(var i=0;i<NUM_BALLS;i++){
+  balls.push({
+    cx:0.2+0.6*Math.random(), cy:0.2+0.6*Math.random(),
+    rx:0.08+0.15*Math.random(), ry:0.08+0.15*Math.random(),
+    sx:0.3+0.4*Math.random(), sy:0.3+0.4*Math.random(),
+    px:Math.random()*Math.PI*2, py:Math.random()*Math.PI*2,
+    r:30+20*Math.random() // influence radius in cells
+  });
+}
+
+var edgeChars=['\u2500','\u2571','\u2502','\u2572'];
+var blockChars=['\u2588','\u2593','\u2592','\u2591','\u00B7'];
+var field=new Float32Array(COLS*ROWS);
+
+function render(now){
+  var t=now*0.001;
+
+  // Update ball positions
+  var bx=new Float32Array(NUM_BALLS);
+  var by=new Float32Array(NUM_BALLS);
+  var br=new Float32Array(NUM_BALLS);
+  for(var i=0;i<NUM_BALLS;i++){
+    var b=balls[i];
+    bx[i]=(b.cx+Math.sin(t*b.sx+b.px)*b.rx)*COLS;
+    by[i]=(b.cy+Math.sin(t*b.sy+b.py)*b.ry)*ROWS;
+    br[i]=b.r+6*Math.sin(t*0.7+i*1.1);
+  }
+
+  // Compute field values
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var idx=row*COLS+col;
+      var val=0;
+      for(var i=0;i<NUM_BALLS;i++){
+        var dx=col-bx[i],dy=row-by[i];
+        var d2=dx*dx+dy*dy;
+        if(d2<1)d2=1;
+        val+=(br[i]*br[i])/d2;
+      }
+      // Add cursor as extra metaball
+      if(mOn){
+        var mcol=mx/CW,mrow=my/CH;
+        var dx=col-mcol,dy=row-mrow;
+        var d2=dx*dx+dy*dy;
+        if(d2<1)d2=1;
+        val+=(40*40)/d2;
+      }
+      field[idx]=val;
+    }
+  }
+
+  // Card exclusion zone
+  var cardRect=cardEl.getBoundingClientRect();
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+
+  var threshold=1.0;
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var idx=row*COLS+col;
+      var v=field[idx];
+      if(v<0.15)continue;
+
+      // Card fade
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?nd*nd:1;
+
+      // Edge detection via gradient
+      var isEdge=false;
+      var edgeDir=0;
+      if(row>0&&row<ROWS-1&&col>0&&col<COLS-1){
+        var gx=field[idx+1]-field[idx-1];
+        var gy=field[idx+COLS]-field[idx-COLS];
+        var gmag=Math.sqrt(gx*gx+gy*gy);
+        // Edge if field is near threshold and gradient is strong
+        if(Math.abs(v-threshold)<0.5&&gmag>0.3){
+          isEdge=true;
+          edgeDir=Math.atan2(gy,gx);
+        }
+      }
+
+      var ch,brightness;
+      if(isEdge){
+        // Pick edge character based on gradient direction
+        var ei=Math.round(((edgeDir/Math.PI+1)*2))%4;
+        ch=edgeChars[ei];
+        brightness=0.5+0.3*Math.min(1,(v-threshold+0.5));
+      } else if(v>=threshold){
+        // Inside: fill characters based on field intensity
+        var fillIdx;
+        if(v>4)fillIdx=0;
+        else if(v>2.5)fillIdx=1;
+        else if(v>1.8)fillIdx=2;
+        else if(v>1.3)fillIdx=3;
+        else fillIdx=4;
+        ch=blockChars[fillIdx];
+        brightness=0.15+0.7*Math.min(1,(v-threshold)/4);
+      } else {
+        // Outside but close: very faint dots
+        if(v>0.4){
+          ch='\u00B7';
+          brightness=0.08+0.15*(v-0.4);
+        } else continue;
+      }
+
+      brightness*=fade;
+      if(brightness<0.02)continue;
+      brightness=Math.min(1,brightness);
+
+      ctx.globalAlpha=brightness;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
