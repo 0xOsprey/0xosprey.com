@@ -63,9 +63,24 @@ function render(now){
     cy[i]=(sBaseY[i]+Math.sin(t*sFY[i]+sPY[i])*sAY[i])*ROWS;
   }
 
-  // Mouse seed: cursor acts as an extra drifting seed, warping nearby cells
+  // Mouse seed: cursor acts as an extra seed AND pushes nearby seeds away
   var hasMouse=mOn;
   var mcx=mx/CW,mcy=my/CH;
+
+  // Push existing seeds away from cursor (creates a visible void/warp zone)
+  if(hasMouse){
+    for(var i=0;i<NS;i++){
+      var pdx=cx[i]-mcx,pdy=cy[i]-mcy;
+      var pd2=pdx*pdx+pdy*pdy;
+      var pushR=22;
+      if(pd2<pushR*pushR){
+        var pd=Math.sqrt(pd2)||1;
+        var pushStr=(1-pd/pushR)*4.5;
+        cx[i]+=pdx/pd*pushStr;
+        cy[i]+=pdy/pd*pushStr;
+      }
+    }
+  }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
 

@@ -33,10 +33,10 @@ var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198
 
 // Boids — Craig Reynolds murmuration simulation
 var N=140;
-var MAX_SPEED=2.0,MIN_SPEED=0.7;
+var MAX_SPEED=1.1,MIN_SPEED=0.28;
 var SEP_R=28,  // separation radius (px): steer away from crowding
     VIS_R=85;  // visible range (px): alignment + cohesion
-var SEP_W=0.16, ALN_W=0.055, COH_W=0.0010;
+var SEP_W=0.10, ALN_W=0.045, COH_W=0.0008;
 var MOUSE_R=160; // predator flee radius
 
 var bx=new Float32Array(N),by=new Float32Array(N);
@@ -97,7 +97,7 @@ function updateBoids(){
       var mdx=bx[i]-mx,mdy=by[i]-my;
       var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
       if(md<MOUSE_R){
-        var mf=(1-md/MOUSE_R)*(1-md/MOUSE_R)*0.32;
+        var mf=(1-md/MOUSE_R)*(1-md/MOUSE_R)*0.18;
         fx+=mdx/md*mf;fy+=mdy/md*mf;
       }
     }
@@ -124,7 +124,7 @@ function updateBoids(){
 var field=new Float32Array(COLS*ROWS);
 var dfx=new Float32Array(COLS*ROWS);
 var dfy=new Float32Array(COLS*ROWS);
-var DECAY=0.84;
+var DECAY=0.88;
 
 function render(){
   updateBoids();

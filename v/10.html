@@ -52,7 +52,7 @@ function updateCard(){
 updateCard();
 
 var lastStep=0;
-var STEP_MS=60;
+var STEP_MS=160;
 var frameCount=0;
 
 function step(){
@@ -87,7 +87,7 @@ function step(){
   if(mOn){
     var mcol=Math.floor(mx/CW);
     var mrow=Math.floor(my/CH);
-    var R=4;
+    var R=7;
     for(var dr=-R;dr<=R;dr++){
       for(var dc=-R;dc<=R;dc++){
         if(dr*dr+dc*dc>R*R)continue;
