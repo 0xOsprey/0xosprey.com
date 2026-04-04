@@ -9,20 +9,19 @@ html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 .r{white-space:pre;color:#d4d0c8}
 .a1{opacity:.06}.a2{opacity:.12}.a3{opacity:.20}.a4{opacity:.30}
 .a5{opacity:.42}.a6{opacity:.55}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
-.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.card{pointer-events:auto;text-align:left;padding:0}
-.nav a{font:400 9px/1 'Courier New',monospace;color:rgba(212,208,200,.18);text-decoration:none;letter-spacing:.08em;transition:color .3s}
-.r{font:11px/13px 'Courier New',monospace;height:13px}
-.prompt{font:13px/1.5 'Courier New',monospace;color:#fff;text-shadow:0 0 10px rgba(255,255,255,.8),0 0 25px rgba(255,255,255,.3)}
-.prompt .tw{display:inline-block}
-
-.links{margin-top:8px}
-.links a{font:12px/1.6 'Courier New',monospace;color:rgba(255,255,255,.55);text-decoration:none;display:block;transition:color .3s;text-shadow:0 0 6px rgba(255,255,255,.4)}
-.links a:hover{color:#fff}
-.links a::before{content:'> ';color:rgba(255,255,255,.25)}
-.links .tw{display:inline-block}
-
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:flex-start;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:left}
+.name{position:relative;height:18px;margin-bottom:10px;white-space:nowrap}
+.n1,.n2{position:absolute;top:0;left:0;font:13px/1 'Courier New',monospace;color:#c8d4ff;text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
+.n1{animation:ns 10s infinite}
+.n2{animation:ns 10s 5s infinite;opacity:0}
+@keyframes ns{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
 @keyframes twinkle{0%,100%{opacity:1}50%{opacity:.5}}
+.icons{display:flex;gap:14px;align-items:center}
+.icons a{color:#c8d4ff;opacity:.4;transition:opacity .3s;text-decoration:none}
+.icons a:hover{opacity:1}
+.icons svg{display:block;width:14px;height:14px}
+.r{font:11px/13px 'Courier New',monospace;height:13px}
 </style></head><body>
 <div id="bg"></div>
 <div class="content"><div class="card" id="card"></div></div>
@@ -38,10 +37,11 @@ document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[
 document.addEventListener('touchend',function(){mouseOn=false});
 
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt" id="promptEl">Joe Coll</div><div class="links" id="linksEl"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="name"><span class="n1">Joe Coll</span><span class="n2">Osprey</span></div><div class="icons"><a href="https://x.com/0xOsprey" title="X" target="_blank"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://github.com/0xOsprey" title="GitHub" target="_blank"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a><a href="mailto:hi@0xosprey.com" title="Email"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></a></div>';
 
 // Wrap characters in twinkle spans
 function wrapTwinkle(el){
+  if(!el)return;
   var text=el.textContent;
   var html='';
   for(var i=0;i<text.length;i++){
