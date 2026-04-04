@@ -8,15 +8,15 @@ html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:38px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:28px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns 14s infinite}
-.n2{animation:ns 14s 7s infinite;opacity:0;filter:blur(7px)}
-@keyframes ns{0%,38%{opacity:1;filter:blur(0)}52%{opacity:0;filter:blur(7px)}88%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}
+.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
+.n1{animation:ns1 14s infinite}
+.n2{animation:ns2 14s infinite;opacity:0}
+@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
 .icons{display:flex;gap:28px;align-items:center;justify-content:center}
 .icons a{color:rgba(255,255,255,.85);opacity:.45;transition:opacity .3s;text-decoration:none}
 .icons a:hover{opacity:1}
-.icons svg{display:block;width:28px;height:28px}
+.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000) drop-shadow(1px 1px 0 #000) drop-shadow(0 0 4px rgba(0,0,0,.9))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -67,10 +67,12 @@ function render(now){
   var e1x=-sep+driftX,e1y=driftY,e1z=0;
   var e2x=sep+driftX,e2y=driftY,e2z=0;
 
-  // Pupil look target (further ahead than drift)
-  var lookX=mOn?(smx/W-.5)*6:Math.sin(t*.3)*.2;
-  var lookY=mOn?-(smy/H-.5)*6:Math.cos(t*.5)*.1;
-  var lookZ=-3;
+  // Shared gaze direction (parallel — both eyes look the same way)
+  var lookX=mOn?(smx/W-.5)*0.9:Math.sin(t*.3)*.08;
+  var lookY=mOn?-(smy/H-.5)*0.9:Math.cos(t*.5)*.05;
+  var lookZ=1.0;
+  var lookL=Math.sqrt(lookX*lookX+lookY*lookY+lookZ*lookZ);
+  lookX/=lookL;lookY/=lookL;lookZ/=lookL;
 
   // Light from above-front, cursor influenced
   var lx=mOn?(smx/W-.5):.3;
@@ -113,10 +115,8 @@ function render(now){
     var nx=px-ex,ny=(py-ey)/(bs*bs),nz=pz-ez;
     var nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;nx/=nl;ny/=nl;nz/=nl;
 
-    // Look direction for pupil
-    var lkx=lookX-ex,lky=lookY-ey,lkz=lookZ-ez;
-    var lkl=Math.sqrt(lkx*lkx+lky*lky+lkz*lkz)||1;
-    lkx/=lkl;lky/=lkl;lkz/=lkl;
+    // Shared parallel gaze direction (pre-normalized)
+    var lkx=lookX,lky=lookY,lkz=lookZ;
 
     var eyeDot=nx*lkx+ny*lky+nz*lkz;
 
