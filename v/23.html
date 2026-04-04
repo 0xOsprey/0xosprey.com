@@ -6,17 +6,17 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
-.content{position:fixed;inset:0;z-index:5;display:flex;align-items:flex-end;justify-content:center;pointer-events:none;padding:48px}
-.card{pointer-events:auto;text-align:left}
-.name{position:relative;height:18px;margin-bottom:10px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:0;font:13px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns 10s infinite}
-.n2{animation:ns 10s 5s infinite;opacity:0}
-@keyframes ns{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
-.icons{display:flex;gap:14px;align-items:center}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+.name{position:relative;height:38px;margin-bottom:20px;white-space:nowrap}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:28px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
+.n1{animation:ns 14s infinite}
+.n2{animation:ns 14s 7s infinite;opacity:0;filter:blur(7px)}
+@keyframes ns{0%,38%{opacity:1;filter:blur(0)}52%{opacity:0;filter:blur(7px)}88%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}
+.icons{display:flex;gap:28px;align-items:center;justify-content:center}
 .icons a{color:rgba(255,255,255,.85);opacity:.45;transition:opacity .3s;text-decoration:none}
 .icons a:hover{opacity:1}
-.icons svg{display:block;width:14px;height:14px}
+.icons svg{display:block;width:28px;height:28px}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -88,7 +88,7 @@ function render(now){
     if(drops.length>MAX_DROPS)drops.shift();
   }
 
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#d4d0c8';
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
   var cardRect=cardEl.getBoundingClientRect();
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
