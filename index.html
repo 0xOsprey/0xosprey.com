@@ -48,11 +48,15 @@ var BUILD='b'+new Date(STAMP).toISOString().slice(5,16).replace('T','.');
 document.getElementById('bv').textContent=BUILD;
 
 // Color themes: white, green (matrix), blue (ocean), red (blood)
+// brightness() MUST come before sepia() — it lowers the input so the later
+// saturate() step doesn't clamp channels at 255 and shift hue. Blue/red had
+// brightness at the end of the chain, which only dimmed the already-broken
+// output.
 var THEMES=[
   {filter:'',nav:'#fff'},
-  {filter:'sepia(1) hue-rotate(75deg) saturate(5)',nav:'#00ff41'},
-  {filter:'sepia(1) hue-rotate(180deg) saturate(8) brightness(.6)',nav:'#2196f3'},
-  {filter:'sepia(1) hue-rotate(330deg) saturate(6) brightness(.5)',nav:'#c43030'},
+  {filter:'brightness(.5) sepia(1) hue-rotate(75deg) saturate(5)',nav:'#00ff41'},
+  {filter:'brightness(.5) sepia(1) hue-rotate(180deg) saturate(8)',nav:'#2196f3'},
+  {filter:'brightness(.5) sepia(1) hue-rotate(330deg) saturate(6)',nav:'#c43030'},
   {filter:'rainbow',nav:'#fff'}
 ];
 var ti=0;
