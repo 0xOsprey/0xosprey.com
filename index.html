@@ -11,6 +11,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden}
 iframe{position:fixed;inset:0;width:100%;height:100%;border:none}
+.title{position:fixed;top:calc(50% - 40px);left:50%;transform:translate(-50%,-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em;pointer-events:none;z-index:10;white-space:nowrap}
 .nav{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:1rem;align-items:center;background:rgba(6,6,8,.92);padding:5px 14px;border-radius:3px;opacity:0;pointer-events:none;transition:opacity .4s}
 .nav.dev{opacity:1;pointer-events:auto}
 .nav button{font:400 10px/1 'Courier New',monospace;color:#fff;background:none;border:none;cursor:pointer;letter-spacing:.08em;transition:opacity .3s;padding:3px 2px;outline:none;-webkit-tap-highlight-color:transparent}
@@ -26,6 +27,7 @@ iframe.rainbow{animation:rainbow-cycle 6s linear infinite}
 </head>
 <body>
 <iframe id="f"></iframe>
+<div class="title">Joe Coll</div>
 <div class="nav">
 <button id="bp">&larr;</button>
 <button id="br">shuffle</button>
@@ -53,20 +55,8 @@ var THEMES=[
   {filter:'rainbow',nav:'#fff'}
 ];
 var ti=0;
-function applyThemeToFrame(){
-  // Name renders at 0.85 alpha, icons at 0.34 (0.85×0.4 element opacity).
-  // Under saturate(5) the bright name's G channel clamps to 255 and drifts
-  // toward cyan; the dimmer icons scale linearly to pure green. Dim the name
-  // to match icon alpha in all themes so the filter produces the same hue —
-  // and so theme switches don't flash a stale bright color before the
-  // injected rule propagates into the iframe's render tree.
-  try{
-    var doc=f.contentDocument;if(!doc)return;
-    var s=doc.getElementById('_nc_match');
-    if(!s){s=doc.createElement('style');s.id='_nc_match';doc.head.appendChild(s);}
-    s.textContent='.n1,.n2{color:rgba(255,255,255,.34)!important}';
-  }catch(e){}
-}
+// The title is a static overlay in the parent document — immune to the
+// iframe filter. Only the iframe (background + icon buttons) gets tinted.
 function setTheme(i){
   ti=((i%THEMES.length)+THEMES.length)%THEMES.length;
   var t=THEMES[ti],rb=t.filter==='rainbow';
@@ -75,7 +65,6 @@ function setTheme(i){
   navEl.classList.toggle('rainbow-nav',rb);
   var c=rb?'':t.nav;
   navEl.querySelectorAll('button,.ct').forEach(function(el){el.style.color=c;});
-  applyThemeToFrame();
 }
 
 function load(i){
@@ -125,7 +114,6 @@ f.addEventListener('load',function(){
     document.getElementById('bv').textContent=namePart?'· '+namePart:'';
   }catch(e){}
   setTheme(ti);
-  applyThemeToFrame();
 });
 
 load(idx);
