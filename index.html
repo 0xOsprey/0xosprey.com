@@ -54,8 +54,10 @@ var THEMES=[
 var ti=0;
 function applyThemeToFrame(){
   try{
-    var els=f.contentDocument.querySelectorAll('.n1,.n2,.icons a');
-    for(var j=0;j<els.length;j++)els[j].style.color='#fff';
+    var icon=f.contentDocument.querySelector('.icons a');
+    var op=icon?parseFloat(getComputedStyle(icon).opacity):0.4;
+    var n1=f.contentDocument.querySelector('.n1');
+    if(n1)n1.style.opacity=op;
   }catch(e){}
 }
 function setTheme(i){
