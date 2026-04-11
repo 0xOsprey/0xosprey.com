@@ -38,6 +38,7 @@ var N=V.length;
 var idx=Math.floor(Math.random()*N);
 var f=document.getElementById('f');
 var ct=document.getElementById('ct');
+var navEl=document.querySelector('.nav');
 // Cache-bust: always load fresh on page load
 var STAMP=Date.now();
 var BUILD='b'+new Date(STAMP).toISOString().slice(5,16).replace('T','.');
@@ -70,18 +71,12 @@ function applyThemeToFrame(){
 }
 function setTheme(i){
   ti=((i%THEMES.length)+THEMES.length)%THEMES.length;
-  var t=THEMES[ti];
-  var navEl=document.querySelector('.nav');
-  if(t.filter==='rainbow'){
-    f.style.filter='';f.classList.add('rainbow');navEl.classList.add('rainbow-nav');
-    var els=document.querySelectorAll('.nav button,.nav .ct');
-    for(var j=0;j<els.length;j++)els[j].style.color='';
-  }else{
-    f.classList.remove('rainbow');navEl.classList.remove('rainbow-nav');
-    f.style.filter=t.filter;
-    var els=document.querySelectorAll('.nav button,.nav .ct');
-    for(var j=0;j<els.length;j++)els[j].style.color=t.nav;
-  }
+  var t=THEMES[ti],rb=t.filter==='rainbow';
+  f.classList.toggle('rainbow',rb);
+  f.style.filter=rb?'':t.filter;
+  navEl.classList.toggle('rainbow-nav',rb);
+  var c=rb?'':t.nav;
+  navEl.querySelectorAll('button,.ct').forEach(function(el){el.style.color=c;});
   applyThemeToFrame();
 }
 
@@ -114,7 +109,6 @@ document.addEventListener('keydown',handleKey);
 
 // Dev mode: press D to toggle nav visibility
 var devMode=false;
-var navEl=document.querySelector('.nav');
 function toggleDev(){devMode=!devMode;navEl.classList.toggle('dev',devMode);}
 function onKeyDown(e){if(e.key==='d'||e.key==='D')toggleDev();}
 document.addEventListener('keydown',onKeyDown);
