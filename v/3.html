@@ -118,7 +118,7 @@
         var ndx=(col-ccx)/crx;
         var ndy=(row-ccy)/cry;
         var nd=ndx*ndx+ndy*ndy;
-        var fade=nd<1?nd*nd:1;
+        var fade=nd<1?1:1;
         avg*=fade;
         if(avg<0.03){line+=' ';continue;}
         var angle=aW>0?aSum/aW:0;

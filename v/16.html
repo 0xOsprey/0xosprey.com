@@ -114,7 +114,7 @@ function render(now){
 
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?nd*nd:1;
+      b*=nd<1?1:1;
       if(b<0.03)continue;
 
       var ch;

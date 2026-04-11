@@ -125,7 +125,7 @@ function render(now){
       // Card fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?nd*nd:1;
+      b*=nd<1?1:1;
 
       b=Math.max(0,Math.min(1,b));
       if(b<0.025)continue;
