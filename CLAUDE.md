@@ -29,4 +29,4 @@ git push
 
 ## Host path
 
-`~/NanoClaw/projects/homepage/` → `/workspace/extra/projects/homepage/` in code agent
+`~/NanoClaw/projects/personal-site/` → `/workspace/extra/projects/personal-site/` in code agent
