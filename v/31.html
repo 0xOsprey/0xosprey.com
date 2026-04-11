@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>31 — dla frost</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+document.getElementById('card').innerHTML='';
+
+// Diffusion-limited aggregation — frost on glass.
+// Walkers do random walks until they touch the growing crystal,
+// then freeze permanently. Cursor clicks seed new nucleation points.
+
+var frozen=new Uint8Array(COLS*ROWS);
+var N=280;
+var wx=new Float32Array(N),wy=new Float32Array(N);
+var STEPS=6; // walker steps per frame
+
+// Seed central cluster + scattered seeds
+var cc=COLS>>1,cr=ROWS>>1;
+for(var dr=-2;dr<=2;dr++) for(var dc=-2;dc<=2;dc++) frozen[(cr+dr)*COLS+(cc+dc)]=1;
+for(var s=0;s<10;s++) frozen[Math.floor(Math.random()*ROWS)*COLS+Math.floor(Math.random()*COLS)]=1;
+
+function spawnWalker(i){
+  wx[i]=Math.random()*COLS;
+  wy[i]=Math.random()*ROWS;
+}
+for(var i=0;i<N;i++) spawnWalker(i);
+
+function touching(c,r){
+  return (c>0&&frozen[r*COLS+c-1])||(c<COLS-1&&frozen[r*COLS+c+1])||
+         (r>0&&frozen[(r-1)*COLS+c])||(r<ROWS-1&&frozen[(r+1)*COLS+c]);
+}
+
+function crystalChar(col,row){
+  var L=col>0&&frozen[row*COLS+col-1];
+  var R=col<COLS-1&&frozen[row*COLS+col+1];
+  var U=row>0&&frozen[(row-1)*COLS+col];
+  var D=row<ROWS-1&&frozen[(row+1)*COLS+col];
+  var UL=col>0&&row>0&&frozen[(row-1)*COLS+col-1];
+  var UR=col<COLS-1&&row>0&&frozen[(row-1)*COLS+col+1];
+  var h=L||R,v=U||D;
+  if(h&&v) return '\u253C'; // ┼
+  if(h)    return '\u2500'; // ─
+  if(v)    return '\u2502'; // │
+  if(UL||( col>0&&row<ROWS-1&&frozen[(row+1)*COLS+col-1])) return '\u2572'; // ╲
+  if(UR||( col<COLS-1&&row<ROWS-1&&frozen[(row+1)*COLS+col+1])) return '\u2571'; // ╱
+  return '\u00B7'; // ·
+}
+
+function render(){
+  // Cursor seeds crystal on hover
+  if(mOn){
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    if(mc>=0&&mc<COLS&&mr>=0&&mr<ROWS) frozen[mr*COLS+mc]=1;
+  }
+
+  // Move walkers
+  for(var i=0;i<N;i++){
+    for(var s=0;s<STEPS;s++){
+      var dir=Math.floor(Math.random()*4);
+      wx[i]+=(dir===0?1:dir===1?-1:0);
+      wy[i]+=(dir===2?1:dir===3?-1:0);
+      if(wx[i]<0)wx[i]+=COLS; if(wx[i]>=COLS)wx[i]-=COLS;
+      if(wy[i]<0)wy[i]+=ROWS; if(wy[i]>=ROWS)wy[i]-=ROWS;
+      var c=wx[i]|0,r=wy[i]|0;
+      if(!frozen[r*COLS+c]&&touching(c,r)){
+        frozen[r*COLS+c]=1;
+        spawnWalker(i);
+        break;
+      }
+    }
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+
+  // Draw walkers as faint dots
+  ctx.globalAlpha=0.07;
+  for(var i=0;i<N;i++) ctx.fillText('\u00B7',(wx[i]|0)*CW,(wy[i]|0)*CH);
+
+  // Draw frozen crystal
+  ctx.globalAlpha=1;
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      if(!frozen[row*COLS+col]) continue;
+      ctx.fillText(crystalChar(col,row),col*CW,row*CH);
+    }
+  }
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
