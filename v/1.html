@@ -111,7 +111,7 @@
         var ndx=(col-ccx)/crx;
         var ndy=(row-ccy)/cry;
         var nd=ndx*ndx+ndy*ndy;
-        var fade=nd<1?nd*nd:1;
+        var fade=nd<1?1:1;
         v*=fade;
         if(v<0.03){line+=' ';continue;}
         var ai=Math.max(1,Math.min(10,Math.round(v*10)));

@@ -138,7 +138,7 @@ function render(){
       // Card elliptical fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?nd*nd:1;
+      var fade=nd<1?1:1;
       brightness*=fade;
 
       if(brightness<0.03)continue;
