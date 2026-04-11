@@ -66,9 +66,9 @@ var ti=0;
 var rbRaf=null,rbStart=null;
 var rbEls=[];
 
-function stopRainbow(){
+function stopRainbow(resetStart){
   if(rbRaf){cancelAnimationFrame(rbRaf);rbRaf=null;}
-  rbStart=null;
+  if(resetStart) rbStart=null;
   f.style.filter='';
   rbEls.forEach(function(el){el.style.filter='';});
 }
@@ -85,7 +85,7 @@ function tickRainbow(now){
 function setTheme(i){
   ti=((i%THEMES.length)+THEMES.length)%THEMES.length;
   var t=THEMES[ti],rb=t.filter==='rainbow';
-  stopRainbow();
+  stopRainbow(!rb);
   f.classList.toggle('rainbow',false);
   navEl.classList.toggle('rainbow-nav',false);
   titleEl.classList.toggle('rainbow-nav',false);
