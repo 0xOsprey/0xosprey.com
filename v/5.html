@@ -109,7 +109,7 @@ function render(now){
       var ndx=(col-ccx)/crx;
       var ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?nd*nd:1;
+      var fade=nd<1?1:1;
       v*=fade;
       if(v<.04){line+=' ';continue;}
       var ramp=((row*131+col*997)&1)?RAMP:RAMP2;
