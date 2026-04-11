@@ -33,22 +33,22 @@ var pvx=new Float32Array(N),pvy=new Float32Array(N);
 var phase=new Float32Array(N),freq=new Float32Array(N);
 for(var i=0;i<N;i++){
   px[i]=Math.random()*W; py[i]=Math.random()*H;
-  pvx[i]=(Math.random()-0.5)*0.5; pvy[i]=(Math.random()-0.5)*0.5;
+  pvx[i]=(Math.random()-0.5)*0.22; pvy[i]=(Math.random()-0.5)*0.22;
   phase[i]=Math.random()*Math.PI*2;
-  freq[i]=0.038+Math.random()*0.018;
+  freq[i]=0.010+Math.random()*0.007; // slow — ~10-15s per cycle
 }
 
-var K=0.12;       // Kuramoto coupling strength
-var SYNC_R2=140*140;
+var K=0.07;       // Kuramoto coupling strength — gentle synchronization
+var SYNC_R2=150*150;
 var field=new Float32Array(COLS*ROWS);
-var DECAY=0.87;
+var DECAY=0.945;  // slow fade — glow lingers
 var CHARS=['\u00B7','\u2218','\u25CB','\u25E6','\u25CF','\u25C9']; // · ∘ ○ ◦ ● ◉
 
 function render(){
   for(var i=0;i<field.length;i++) field[i]*=DECAY;
 
   for(var i=0;i<N;i++){
-    // Kuramoto: pull phase toward neighbors
+    // Kuramoto: gently pull phase toward neighbors
     var sum=0,cnt=0;
     for(var j=0;j<N;j++){
       if(i===j) continue;
@@ -57,31 +57,31 @@ function render(){
     }
     phase[i]+=freq[i]+(cnt>0?K*sum/cnt:0);
 
-    // Cursor disrupts phase
+    // Cursor gently disrupts phase
     if(mOn){
       var dx=px[i]-mx,dy=py[i]-my;
-      if(dx*dx+dy*dy<55*55) phase[i]+=0.35;
+      if(dx*dx+dy*dy<60*60) phase[i]+=0.15;
     }
 
-    // Drift
+    // Very slow drift
     px[i]+=pvx[i]; py[i]+=pvy[i];
     if(px[i]<0){px[i]=0;pvx[i]*=-1;} if(px[i]>W){px[i]=W;pvx[i]*=-1;}
     if(py[i]<0){py[i]=0;pvy[i]*=-1;} if(py[i]>H){py[i]=H;pvy[i]*=-1;}
 
-    // Always draw faint presence
+    // Always draw faint presence — firefly body
     var gc=px[i]/CW|0,gr=py[i]/CH|0;
-    if(gc>=0&&gc<COLS&&gr>=0&&gr<ROWS) field[gr*COLS+gc]=Math.max(field[gr*COLS+gc],0.06);
+    if(gc>=0&&gc<COLS&&gr>=0&&gr<ROWS) field[gr*COLS+gc]=Math.max(field[gr*COLS+gc],0.05);
 
-    // Flash on phase peak — sharp sine^4 spike
+    // Soft swell — sine^2 peaks wide and slow
     var s=Math.sin(phase[i]);
     if(s<0) continue;
-    var b=s*s*s*s;
-    if(b<0.02) continue;
+    var b=s*s; // softer than sine^4
+    if(b<0.015) continue;
 
-    var sr=b<0.5?1.4:2.2;
+    var sr=b<0.4?1.6:2.4;
     var c0=Math.max(0,(px[i]/CW-sr-1)|0),c1=Math.min(COLS-1,(px[i]/CW+sr+1)|0);
     var r0=Math.max(0,(py[i]/CH-sr-1)|0),r1=Math.min(ROWS-1,(py[i]/CH+sr+1)|0);
-    var inv=1/(sr*sr*0.5+0.1);
+    var inv=1/(sr*sr*0.6+0.1);
     for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
       var ddx=c-px[i]/CW,ddy=r-py[i]/CH;
       field[r*COLS+c]=Math.min(1,field[r*COLS+c]+b*Math.exp(-(ddx*ddx+ddy*ddy)*inv));
