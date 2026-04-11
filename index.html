@@ -52,6 +52,14 @@ var THEMES=[
   {filter:'rainbow',nav:'#fff'}
 ];
 var ti=0;
+function applyThemeToFrame(){
+  try{
+    var t=THEMES[ti];
+    var color=t.filter==='rainbow'?'':t.nav;
+    var els=f.contentDocument.querySelectorAll('.n1,.n2,.icons a');
+    for(var j=0;j<els.length;j++)els[j].style.color=color;
+  }catch(e){}
+}
 function setTheme(i){
   ti=((i%THEMES.length)+THEMES.length)%THEMES.length;
   var t=THEMES[ti];
@@ -66,6 +74,7 @@ function setTheme(i){
     var els=document.querySelectorAll('.nav button,.nav .ct');
     for(var j=0;j<els.length;j++)els[j].style.color=t.nav;
   }
+  applyThemeToFrame();
 }
 
 function load(i){
