@@ -54,10 +54,10 @@ var THEMES=[
 var ti=0;
 function applyThemeToFrame(){
   try{
-    var icon=f.contentDocument.querySelector('.icons a');
-    var op=icon?parseFloat(getComputedStyle(icon).opacity):0.4;
+    // Name and icons share the same CSS color — both tinted by the iframe filter.
+    // Clear any inline overrides so the filter treats them identically.
     var n1=f.contentDocument.querySelector('.n1');
-    if(n1)n1.style.opacity=op;
+    if(n1){n1.style.removeProperty('color');n1.style.removeProperty('opacity');}
   }catch(e){}
 }
 function setTheme(i){
@@ -74,6 +74,7 @@ function setTheme(i){
     var els=document.querySelectorAll('.nav button,.nav .ct');
     for(var j=0;j<els.length;j++)els[j].style.color=t.nav;
   }
+  applyThemeToFrame();
 }
 
 function load(i){
