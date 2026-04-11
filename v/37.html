@@ -22,68 +22,84 @@ addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 document.getElementById('card').innerHTML='';
 
-// Curl noise smoke — divergence-free velocity field from
-// the curl of layered sinusoidal noise. Smoke rises naturally,
-// eddying and billowing without sources or sinks.
-// Cursor injects heat (upward boost).
+// Curl noise smoke — divergence-free velocity field gives naturally
+// turbulent, sourceless flow. Particles carry both density and direction;
+// each visible cell shows a flow arrow weighted by local smoke density.
+// The field evolves glacially. Cursor is a heat source.
 
-var RAMP=' \u2591\u2592\u2593\u2588';
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
 
-function noise2D(x,y,t){
-  return Math.sin(x*0.028+t*0.37+y*0.019)
-        +0.5*Math.sin(x*0.066-t*0.28+y*0.047)
-        +0.25*Math.sin(x*0.121+t*0.51-y*0.083)
-        +0.125*Math.sin(x*0.183-t*0.19+y*0.161);
+// Multi-octave potential field — very slow drift
+function psi(x,y,t){
+  return Math.sin(x*0.016+t*0.09+y*0.012)
+        +0.55*Math.sin(x*0.033-t*0.06+y*0.026)
+        +0.28*Math.sin(x*0.061+t*0.11-y*0.048)
+        +0.14*Math.sin(x*0.098-t*0.05+y*0.081);
+}
+function curlAt(x,y,t){
+  var e=1.5;
+  return {
+    vx:(psi(x,y+e,t)-psi(x,y-e,t))/(2*e),
+    vy:-(psi(x+e,y,t)-psi(x-e,y,t))/(2*e)
+  };
 }
 
-function curlV(x,y,t){
-  var e=0.8;
-  var vx=(noise2D(x,y+e,t)-noise2D(x,y-e,t))/(2*e);
-  var vy=-(noise2D(x+e,y,t)-noise2D(x-e,y,t))/(2*e);
-  return {vx:vx,vy:vy};
-}
-
-var N=240;
+var N=480;
 var px=new Float32Array(N),py=new Float32Array(N);
 for(var i=0;i<N;i++){
-  px[i]=W*0.15+Math.random()*W*0.7;
-  py[i]=H*0.3+Math.random()*H*0.7;
+  px[i]=W*0.05+Math.random()*W*0.9;
+  py[i]=H*0.25+Math.random()*H*0.75;
 }
+
 var field=new Float32Array(COLS*ROWS);
-var DECAY=0.91;
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+var DECAY=0.938;
 
 function render(now){
-  var t=now*0.001;
-  for(var i=0;i<field.length;i++) field[i]*=DECAY;
+  var t=now*0.00038; // glacially slow
+
+  for(var i=0;i<field.length;i++){
+    field[i]*=DECAY;
+    dfx[i]*=DECAY;
+    dfy[i]*=DECAY;
+  }
 
   for(var i=0;i<N;i++){
-    var cv=curlV(px[i]*0.005,py[i]*0.005,t);
-    var spd=2.8;
+    var cv=curlAt(px[i],py[i],t);
+    var spd=2.1;
     var vx=cv.vx*spd;
-    var vy=cv.vy*spd-0.9; // upward drift
+    var vy=cv.vy*spd-0.7; // gentle upward drift
 
     if(mOn){
       var dx=px[i]-mx,dy=py[i]-my;
       var d2=dx*dx+dy*dy;
-      if(d2<90*90){
-        var d=Math.sqrt(d2)||1,mf=(1-d/90)*2.5;
-        vy-=mf; vx+=dx/d*mf*0.4;
+      if(d2<95*95){
+        var d=Math.sqrt(d2)||1,mf=(1-d/95)*2.6;
+        vy-=mf; vx+=dx/d*mf*0.35;
       }
     }
 
     px[i]+=vx; py[i]+=vy;
-    if(py[i]<-30||py[i]>H+30||px[i]<-120||px[i]>W+120){
-      px[i]=W*0.1+Math.random()*W*0.8;
-      py[i]=H*0.5+Math.random()*H*0.5;
+
+    if(py[i]<-50||px[i]<-180||px[i]>W+180||py[i]>H+50){
+      px[i]=W*0.08+Math.random()*W*0.84;
+      py[i]=H*0.4+Math.random()*H*0.6;
       continue;
     }
 
-    var gc=px[i]/CW,gr=py[i]/CH,sr=1.9;
-    var c0=Math.max(0,(gc-2)|0),c1=Math.min(COLS-1,(gc+2)|0);
-    var r0=Math.max(0,(gr-2)|0),r1=Math.min(ROWS-1,(gr+2)|0);
+    // Stamp density + velocity direction
+    var gc=px[i]/CW,gr=py[i]/CH,sr=2.6;
+    var c0=Math.max(0,(gc-3)|0),c1=Math.min(COLS-1,(gc+3)|0);
+    var r0=Math.max(0,(gr-3)|0),r1=Math.min(ROWS-1,(gr+3)|0);
+    var inv=1/(sr*sr);
     for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
       var dc=c-gc,dr=r-gr;
-      field[r*COLS+c]=Math.min(1.5,field[r*COLS+c]+0.32*Math.exp(-(dc*dc+dr*dr)/(sr*sr)));
+      var g=0.26*Math.exp(-(dc*dc+dr*dr)*inv);
+      var idx=r*COLS+c;
+      field[idx]=Math.min(1.5,field[idx]+g);
+      dfx[idx]+=vx*g;
+      dfy[idx]+=vy*g;
     }
   }
 
@@ -92,11 +108,11 @@ function render(now){
     for(var col=0;col<COLS;col++){
       var b=Math.min(1,field[row*COLS+col]);
       if(b<0.05) continue;
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ') continue;
+      var idx=row*COLS+col;
+      var angle=Math.atan2(dfy[idx],dfx[idx]);
+      var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
       ctx.globalAlpha=b;
-      ctx.fillText(ch,col*CW,row*CH);
+      ctx.fillText(DIRS[di],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;

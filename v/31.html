@@ -70,6 +70,18 @@ function render(){
     if(mc>=0&&mc<COLS&&mr>=0&&mr<ROWS) frozen[mr*COLS+mc]=1;
   }
 
+  // Auto-fill enclosed gaps: cells with all 4 orthogonal neighbors frozen close immediately.
+  // Cells with 3 frozen neighbors fill quickly too — this seals off remaining blank islands.
+  for(var r=1;r<ROWS-1;r++){
+    for(var c=1;c<COLS-1;c++){
+      if(frozen[r*COLS+c]) continue;
+      var L=frozen[r*COLS+c-1],R=frozen[r*COLS+c+1],U=frozen[(r-1)*COLS+c],D=frozen[(r+1)*COLS+c];
+      var n=(L?1:0)+(R?1:0)+(U?1:0)+(D?1:0);
+      if(n===4) frozen[r*COLS+c]=1;           // fully enclosed — fill immediately
+      else if(n===3&&Math.random()<0.08) frozen[r*COLS+c]=1; // 3-sided — fill quickly
+    }
+  }
+
   // Move walkers
   for(var i=0;i<N;i++){
     for(var s=0;s<STEPS;s++){
