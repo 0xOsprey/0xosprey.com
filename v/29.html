@@ -39,11 +39,11 @@ for(var i=0;i<N;i++){
 var trail=new Float32Array(COLS*ROWS);
 var trailBuf=new Float32Array(COLS*ROWS);
 var SA=Math.PI/4; // sensor angle offset
-var SD=9;         // sensor distance (cells)
+var SD=11;        // sensor distance (cells)
 var RA=Math.PI/4; // rotation step
-var DECAY=0.974;
-var DEP=0.85;
-var SS=1.3;       // step size (cells/frame)
+var DECAY=0.982;  // trails persist longer
+var DEP=0.48;     // gentle deposit — no harsh flares
+var SS=0.75;      // slow agents
 
 function sense(x,y,angle){
   var sc=Math.round(x+Math.cos(angle)*SD);
