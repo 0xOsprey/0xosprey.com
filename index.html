@@ -54,19 +54,17 @@ var THEMES=[
 ];
 var ti=0;
 function applyThemeToFrame(){
-  // The name renders at ~0.85 alpha and icons at ~0.34 (0.85×0.4 element opacity).
-  // Through sepia+hue-rotate+saturate(5), the bright name hits the G-channel
-  // ceiling (255) and drifts toward cyan (#00FFCB), while the dimmer icons
-  // scale linearly into pure green. Dim the name to match icon alpha so both
-  // land on the same hue.
+  // Name renders at 0.85 alpha, icons at 0.34 (0.85×0.4 element opacity).
+  // Under saturate(5) the bright name's G channel clamps to 255 and drifts
+  // toward cyan; the dimmer icons scale linearly to pure green. Dim the name
+  // to match icon alpha in all themes so the filter produces the same hue —
+  // and so theme switches don't flash a stale bright color before the
+  // injected rule propagates into the iframe's render tree.
   try{
     var doc=f.contentDocument;if(!doc)return;
     var s=doc.getElementById('_nc_match');
     if(!s){s=doc.createElement('style');s.id='_nc_match';doc.head.appendChild(s);}
-    var active=THEMES[ti].filter!=='';
-    s.textContent=active?'.n1,.n2{color:rgba(255,255,255,.34)!important}':'';
-    var n1=doc.querySelector('.n1');
-    if(n1){n1.style.removeProperty('color');n1.style.removeProperty('opacity');}
+    s.textContent='.n1,.n2{color:rgba(255,255,255,.34)!important}';
   }catch(e){}
 }
 function setTheme(i){
