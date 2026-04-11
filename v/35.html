@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>35 — aurora</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+document.getElementById('card').innerHTML='';
+
+// Aurora borealis — horizontal curtains of light.
+// Each band is a Gaussian sheet with sinusoidal undulation and
+// vertical ray modulation. Cursor ripples through the nearest band.
+
+var RAMP=' .·:=+*#@\u2588';
+var NB=5;
+var bCenter=new Float32Array(NB);
+var bWidth=new Float32Array(NB);
+var bBright=new Float32Array(NB);
+var bWavePhase=new Float32Array(NB);
+var bWaveDrift=new Float32Array(NB);
+var bWaveAmp=new Float32Array(NB);
+var bWaveLen=new Float32Array(NB);
+var bRayPhase=new Float32Array(NB);
+var bRayFreq=new Float32Array(NB);
+var bRayDrift=new Float32Array(NB);
+var bCenterTarget=new Float32Array(NB);
+
+for(var i=0;i<NB;i++){
+  bCenter[i]=ROWS*(0.08+i*0.19+Math.random()*0.06);
+  bCenterTarget[i]=bCenter[i];
+  bWidth[i]=2.2+Math.random()*3.8;
+  bBright[i]=0.55+Math.random()*0.45;
+  bWavePhase[i]=Math.random()*Math.PI*2;
+  bWaveDrift[i]=(0.004+Math.random()*0.012)*(Math.random()<0.5?1:-1);
+  bWaveAmp[i]=2.5+Math.random()*4.5;
+  bWaveLen[i]=COLS*(0.25+Math.random()*0.35);
+  bRayPhase[i]=Math.random()*Math.PI*2;
+  bRayFreq[i]=0.08+Math.random()*0.12;
+  bRayDrift[i]=(0.002+Math.random()*0.006)*(Math.random()<0.5?1:-1);
+}
+
+function render(){
+  for(var i=0;i<NB;i++){
+    bWavePhase[i]+=bWaveDrift[i];
+    bRayPhase[i]+=bRayDrift[i];
+    // Slowly meander band centers
+    bCenterTarget[i]+=Math.sin(bWavePhase[i]*0.3+i)*0.008;
+    bCenter[i]+=(bCenterTarget[i]-bCenter[i])*0.01;
+  }
+
+  // Cursor perturbs nearest band upward
+  if(mOn){
+    var mr=my/CH;
+    var closest=0,minD=1e9;
+    for(var i=0;i<NB;i++){var d=Math.abs(mr-bCenter[i]);if(d<minD){minD=d;closest=i;}}
+    if(minD<12) bCenter[closest]+=(mr-bCenter[closest])*0.03;
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=0;
+      for(var i=0;i<NB;i++){
+        var wave=bWaveAmp[i]*Math.sin(col/bWaveLen[i]*Math.PI*2+bWavePhase[i]);
+        var dy=row-(bCenter[i]+wave);
+        var vert=Math.exp(-dy*dy/(2*bWidth[i]*bWidth[i]));
+        var ray=0.45+0.55*Math.sin(col*bRayFreq[i]+bRayPhase[i]);
+        b+=bBright[i]*vert*(0.4+0.6*ray);
+      }
+      if(b<0.04) continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
+      var ch=RAMP[ci];
+      if(ch===' ') continue;
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
