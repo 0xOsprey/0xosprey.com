@@ -35,6 +35,7 @@ var mouseX=-1,mouseY=-1,mouseOn=false;
 document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
 document.addEventListener('mouseleave',function(){mouseOn=false});
 document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY;}},{passive:true});
 document.addEventListener('touchend',function(){mouseOn=false});
 
 var cardEl=document.getElementById('card');
