@@ -96,18 +96,11 @@ function render(){
   tips=alive;
 
   // Island clear zone around center content
-  var icx=W/2/CW, icy=H/2/CH-3.8;
-  var irx=32, iry=7;
-
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
       var b=field[row*COLS+col];
       if(b<0.05) continue;
-      var ndx=(col-icx)/irx,ndy=(row-icy)/iry;
-      var nd2=ndx*ndx+ndy*ndy;
-      if(nd2<1) continue;
-      if(nd2<1.8) b*=(nd2-1)/0.8;
       b=Math.min(1,b);
       if(b<0.04) continue;
 

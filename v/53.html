@@ -111,8 +111,6 @@ strike(false);
 var CHARS=['─','╲','│','╱'];
 var RAMP=['\u00B7','.',':',';','='];
 
-var icx=W/2/CW,icy=H/2/CH-3.8,irx=32,iry=7;
-
 function render(){
   frame++;
 
@@ -131,11 +129,6 @@ function render(){
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
       var b=bright[row*COLS+col]+flashLv*0.12;
-      if(b<0.03) continue;
-      var ndx=(col-icx)/irx,ndy=(row-icy)/iry;
-      var nd2=ndx*ndx+ndy*ndy;
-      if(nd2<1) continue;
-      if(nd2<1.6) b*=(nd2-1)/0.6;
       if(b<0.03) continue;
       b=Math.min(1,b);
       var ang=angF[row*COLS+col];
