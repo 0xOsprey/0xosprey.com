@@ -116,6 +116,20 @@ function onIframeClick(e){
   if(e.target.closest('a'))return;
   setTheme(ti+1);
 }
+var tStartX=0,tStartY=0,tStartT=0;
+function onIframeTouchStart(e){
+  var t=e.touches&&e.touches[0];if(!t)return;
+  tStartX=t.clientX;tStartY=t.clientY;tStartT=Date.now();
+}
+function onIframeTouchEnd(e){
+  var t=e.changedTouches&&e.changedTouches[0];if(!t)return;
+  var dx=t.clientX-tStartX,dy=t.clientY-tStartY;
+  if(dx*dx+dy*dy>100)return;
+  if(Date.now()-tStartT>500)return;
+  var el=f.contentDocument&&f.contentDocument.elementFromPoint(t.clientX,t.clientY);
+  if(el&&el.closest&&el.closest('a'))return;
+  setTheme(ti+1);
+}
 function handleKey(e){
   if(e.key==='ArrowLeft'){e.preventDefault();go(-1);}
   else if(e.key==='ArrowRight'){e.preventDefault();go(1);}
@@ -143,6 +157,8 @@ f.addEventListener('load',function(){
     f.contentWindow.addEventListener('keydown',handleKey);
     f.contentWindow.addEventListener('keydown',onKeyDown);
     f.contentWindow.addEventListener('click',onIframeClick);
+    f.contentDocument.addEventListener('touchstart',onIframeTouchStart,{passive:true});
+    f.contentDocument.addEventListener('touchend',onIframeTouchEnd,{passive:true});
     // Show variant name from page title (format: "14 — spinning donut")
     var title=f.contentDocument.title||'';
     var namePart=title.replace(/^\d+\s*[—-]\s*/,'');
