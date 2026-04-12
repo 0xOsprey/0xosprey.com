@@ -96,8 +96,8 @@ function render(){
   tips=alive;
 
   // Island clear zone around center content
-  var icx=W*0.5/CW, icy=H*0.5/CH;
-  var irx=30, iry=6;
+  var icx=W/2/CW, icy=H/2/CH-3.8;
+  var irx=32, iry=7;
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   for(var row=0;row<ROWS;row++){
