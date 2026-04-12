@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>53 — abyss</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false,mClick=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY;});
+addEventListener('mouseleave',function(){mOn=false;});
+addEventListener('click',function(e){mClick=true;mx=e.clientX;my=e.clientY;});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mClick=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
+
+// Abyss — hadal zone, 11km below the surface.
+// Total darkness. No light has ever reached here.
+// Rare fragments of organic matter drift upward through the column.
+// Cursor fires a sonar pulse — the ping expands outward,
+// briefly illuminating whatever floats in the dark.
+// The silence between pulses is the point.
+
+var RAMP=['\u00B7','.','\'',',',':'];
+
+// Drifters — sparse particulate matter slowly rising
+var ND=22;
+var dx=new Float32Array(ND),dy=new Float32Array(ND);
+var dvx=new Float32Array(ND),dvy=new Float32Array(ND);
+for(var i=0;i<ND;i++){
+  dx[i]=Math.random()*W;
+  dy[i]=Math.random()*H;
+  dvx[i]=(Math.random()-0.5)*0.12;
+  dvy[i]=-(0.04+Math.random()*0.1); // rising
+}
+
+// Sonar pings: [cx, cy, radius, age, maxAge]
+var pings=[];
+var MAX_PINGS=4;
+var PING_SPEED=2.2;
+var PING_MAX_R=Math.max(W,H)*0.72;
+
+var frame=0;
+var autoT=0;
+
+function firePing(x,y){
+  if(pings.length<MAX_PINGS) pings.push({cx:x,cy:y,r:0,age:0,maxAge:Math.ceil(PING_MAX_R/PING_SPEED)});
+}
+
+// Occasional automatic deep ping from below
+function maybeAutoPing(){
+  if(frame%320===0&&pings.length<2){
+    firePing(W*(0.2+Math.random()*0.6),H*(0.6+Math.random()*0.5));
+  }
+}
+
+var field=new Float32Array(COLS*ROWS);
+
+function render(){
+  frame++;
+  maybeAutoPing();
+
+  if(mClick){
+    firePing(mx,my);
+    mClick=false;
+  }
+
+  // Advance pings
+  var alivePings=[];
+  for(var p=0;p<pings.length;p++){
+    var pg=pings[p];
+    pg.r+=PING_SPEED;
+    pg.age++;
+    if(pg.r<PING_MAX_R) alivePings.push(pg);
+  }
+  pings=alivePings;
+
+  // Move drifters
+  for(var i=0;i<ND;i++){
+    dvx[i]+=(Math.random()-0.5)*0.012;
+    dvx[i]*=0.98;
+    dx[i]+=dvx[i];
+    dy[i]+=dvy[i];
+    if(dy[i]<-20){dy[i]=H+10;dx[i]=Math.random()*W;}
+    if(dx[i]<0) dx[i]+=W;
+    if(dx[i]>W) dx[i]-=W;
+  }
+
+  // Build field: zero out, then accumulate ping illumination + drifters
+  for(var k=0;k<field.length;k++) field[k]=0;
+
+  // Ping rings: illuminate cells near the wavefront
+  for(var p=0;p<pings.length;p++){
+    var pg=pings[p];
+    var fade=1-pg.r/PING_MAX_R;
+    if(fade<=0) continue;
+    var pcx=pg.cx/CW,pcy=pg.cy/CH;
+    var pr=pg.r/CW; // ring radius in cell units
+    var pry=pg.r/CH;
+    var band=2.5; // ring thickness in cells
+    var r0=Math.max(0,((pcy-(pr+band))|0));
+    var r1=Math.min(ROWS-1,((pcy+(pr+band))|0)+1);
+    for(var row=r0;row<=r1;row++){
+      var dy2=row-pcy;
+      var xExtent=Math.sqrt(Math.max(0,(pr+band)*(pr+band)-dy2*dy2*((pr+band)/(pry+band))*((pr+band)/(pry+band))))*CW/CW;
+      var c0=Math.max(0,((pcx-xExtent-1)|0));
+      var c1=Math.min(COLS-1,((pcx+xExtent+1)|0)+1);
+      for(var col=c0;col<=c1;col++){
+        var ddx=col-pcx,ddy=row-pcy;
+        var dist=Math.sqrt(ddx*ddx+ddy*ddy*((CW/CH)*(CW/CH)));
+        var delta=Math.abs(dist-pr);
+        if(delta<band){
+          var bright=Math.exp(-delta*delta*0.55)*fade*0.6;
+          field[row*COLS+col]=Math.max(field[row*COLS+col],bright);
+        }
+      }
+    }
+  }
+
+  // Drifters: glow where illuminated by a ping, else near-invisible
+  for(var i=0;i<ND;i++){
+    var gc=dx[i]/CW,gr=dy[i]/CH;
+    var c=gc|0,r=gr|0;
+    if(c<0||c>=COLS||r<0||r>=ROWS) continue;
+    var ambient=0.035;
+    // Check if any ping illuminates this particle
+    var lit=ambient;
+    for(var p=0;p<pings.length;p++){
+      var pg=pings[p];
+      var fade=1-pg.r/PING_MAX_R;
+      if(fade<=0) continue;
+      var pdx=dx[i]-pg.cx,pdy=dy[i]-pg.cy;
+      var d2=pdx*pdx+pdy*pdy;
+      var diff=Math.abs(Math.sqrt(d2)-pg.r);
+      if(diff<24) lit=Math.max(lit,fade*Math.exp(-diff*diff*0.005)*0.95);
+    }
+    field[r*COLS+c]=Math.max(field[r*COLS+c],lit);
+  }
+
+  // Island clear zone
+  var icx=W/2/CW,icy=H/2/CH,irx=30,iry=6;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=field[row*COLS+col];
+      if(b<0.02) continue;
+      var ndx=(col-icx)/irx,ndy=(row-icy)/iry;
+      var nd2=ndx*ndx+ndy*ndy;
+      if(nd2<1) continue;
+      if(nd2<1.6) b*=(nd2-1)/0.6;
+      if(b<0.02) continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      ctx.globalAlpha=b;
+      ctx.fillText(RAMP[ci],col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
