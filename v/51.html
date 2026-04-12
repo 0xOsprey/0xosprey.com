@@ -110,19 +110,12 @@ function render(){
     }
   }
 
-  // Island clear zone
-  var icx=W/2/CW,icy=H/2/CH-3.8,irx=32,iry=7;
-
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   var RAMP=['\u00B7','.',':',';','*','#'];
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
       var b=field[row*COLS+col];
       if(b<0.08) continue;
-      var ndx=(col-icx)/irx,ndy=(row-icy)/iry;
-      var nd2=ndx*ndx+ndy*ndy;
-      if(nd2<1) continue;
-      if(nd2<1.6) b*=(nd2-1)/0.6;
       b=Math.min(1,b);
       if(b<0.07) continue;
       var ci=Math.min(RAMP.length-1,(b*(RAMP.length))|0);
