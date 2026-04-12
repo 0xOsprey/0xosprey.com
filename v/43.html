@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>43 — gravity ballet</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+document.getElementById('card').innerHTML='';
+
+// N-body gravity ballet — six masses in mutual gravitational dance.
+// Tracers swarm among them, catching gravity slings and orbital resonances.
+// Trail decay is very slow; the screen becomes a record of all trajectories.
+// Cursor is an invisible seventh mass.
+
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
+var G=1800; // gravitational constant
+var SOFT=22; // softening length (px)
+
+var NB=6;
+var bx=new Float32Array(NB),by=new Float32Array(NB);
+var bvx=new Float32Array(NB),bvy=new Float32Array(NB);
+var RING=Math.min(W,H)*0.27;
+
+// Six bodies in a ring, initially near circular orbit velocity
+for(var i=0;i<NB;i++){
+  var ang=i/NB*Math.PI*2;
+  bx[i]=W/2+Math.cos(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  by[i]=H/2+Math.sin(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  var v=Math.sqrt(G*(NB-1)/RING)*0.88;
+  bvx[i]=(-Math.sin(ang)*v)+(Math.random()-0.5)*v*0.2;
+  bvy[i]=(Math.cos(ang)*v)+(Math.random()-0.5)*v*0.2;
+}
+
+var NT=90; // tracers
+var tx=new Float32Array(NT),ty=new Float32Array(NT);
+var tvx=new Float32Array(NT),tvy=new Float32Array(NT);
+for(var i=0;i<NT;i++){
+  var bi=i%NB;
+  var ang2=Math.random()*Math.PI*2;
+  var r2=(0.05+Math.random()*0.3)*RING;
+  tx[i]=bx[bi]+Math.cos(ang2)*r2;
+  ty[i]=by[bi]+Math.sin(ang2)*r2;
+  tvx[i]=bvx[bi]+(Math.random()-0.5)*2;
+  tvy[i]=bvy[bi]+(Math.random()-0.5)*2;
+}
+
+var field=new Float32Array(COLS*ROWS);
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+var DECAY=0.991; // extremely slow fade — trails accumulate
+
+function accel(px,py,excludeBody){
+  var ax=0,ay=0;
+  for(var j=0;j<NB;j++){
+    if(j===excludeBody) continue;
+    var dx=bx[j]-px,dy=by[j]-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  if(mOn){
+    var dx=mx-px,dy=my-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G*0.6/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  return {ax:ax,ay:ay};
+}
+
+function stamp(x,y,vx,vy,strength,radius){
+  var gc=x/CW,gr=y/CH;
+  var c0=Math.max(0,(gc-radius-1)|0),c1=Math.min(COLS-1,(gc+radius+1)|0);
+  var r0=Math.max(0,(gr-radius-1)|0),r1=Math.min(ROWS-1,(gr+radius+1)|0);
+  var inv=1/(radius*radius+0.1);
+  for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
+    var dc=c-gc,dr=r-gr;
+    var g=strength*Math.exp(-(dc*dc+dr*dr)*inv);
+    var idx=r*COLS+c;
+    field[idx]=Math.min(1.5,field[idx]+g);
+    dfx[idx]+=vx*g; dfy[idx]+=vy*g;
+  }
+}
+
+function render(){
+  for(var i=0;i<field.length;i++){field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;}
+
+  // Leapfrog integration for bodies
+  for(var i=0;i<NB;i++){
+    var a=accel(bx[i],by[i],i);
+    bvx[i]+=a.ax; bvy[i]+=a.ay;
+    bvx[i]*=0.9995; bvy[i]*=0.9995;
+    bx[i]+=bvx[i]; by[i]+=bvy[i];
+    // Soft wall
+    var push=0.4;
+    if(bx[i]<W*0.04)bvx[i]+=push; if(bx[i]>W*0.96)bvx[i]-=push;
+    if(by[i]<H*0.04)bvy[i]+=push; if(by[i]>H*0.96)bvy[i]-=push;
+    stamp(bx[i],by[i],bvx[i],bvy[i],0.65,3.2);
+  }
+
+  // Update tracers
+  for(var i=0;i<NT;i++){
+    var a=accel(tx[i],ty[i],-1);
+    tvx[i]+=a.ax; tvy[i]+=a.ay;
+    tvx[i]*=0.999; tvy[i]*=0.999;
+    tx[i]+=tvx[i]; ty[i]+=tvy[i];
+    if(tx[i]<-60||tx[i]>W+60||ty[i]<-60||ty[i]>H+60){
+      var bi=Math.floor(Math.random()*NB);
+      var ang3=Math.random()*Math.PI*2,r3=(0.1+Math.random()*0.25)*RING;
+      tx[i]=bx[bi]+Math.cos(ang3)*r3; ty[i]=by[bi]+Math.sin(ang3)*r3;
+      tvx[i]=bvx[bi]+(Math.random()-0.5)*1.5; tvy[i]=bvy[bi]+(Math.random()-0.5)*1.5;
+    }
+    stamp(tx[i],ty[i],tvx[i],tvy[i],0.2,1.8);
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.03) continue;
+      var idx=row*COLS+col;
+      var ang=Math.atan2(dfy[idx],dfx[idx]);
+      var di=((Math.round(ang/(Math.PI/4))%8)+8)%8;
+      ctx.globalAlpha=b;
+      ctx.fillText(DIRS[di],col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
