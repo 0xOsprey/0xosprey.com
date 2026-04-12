@@ -17,6 +17,8 @@ Nature motif — ocean, atmosphere, cosmos, biology. Slow, flowing, cursor-react
 
 GitHub Pages off `main` branch. Push to `origin main` to deploy. No build step — pure HTML/CSS/JS.
 
+Always push immediately after committing — do not wait to be asked.
+
 ```bash
 git add .
 git commit -m "..."
