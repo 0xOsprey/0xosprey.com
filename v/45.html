@@ -17,9 +17,9 @@ var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
 var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
 ctx.font='8px Courier New';ctx.textBaseline='top';
-var mx=-1,my=-1,mOn=false;
-addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
-addEventListener('mouseleave',function(){mOn=false});
+var mx=-1,my=-1,mOn=false,mMoved=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY;mMoved=true;});
+addEventListener('mouseleave',function(){mOn=false;mMoved=false;});
 document.getElementById('card').innerHTML='';
 
 // Cyclic cellular automaton — K colors arranged in a clock.
@@ -41,12 +41,13 @@ for(var i=0;i<grid.length;i++) grid[i]=Math.floor(Math.random()*K);
 var RAMP=[' ','\u00B7','.',':',';','=','+','*','#','@','\u2588'];
 
 function step(){
-  if(mOn){
+  if(mMoved){
     var mc=(mx/CW)|0,mr=(my/CH)|0;
     for(var dr=-4;dr<=4;dr++) for(var dc=-4;dc<=4;dc++){
       var rr=mr+dr,cc=mc+dc;
       if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) grid[rr*COLS+cc]=Math.floor(Math.random()*K);
     }
+    mMoved=false;
   }
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
@@ -71,6 +72,10 @@ function step(){
 function render(){
   for(var s=0;s<STEPS;s++) step();
 
+  // Island: clear ellipse at screen center so name + icons remain legible
+  var icx=W/2/CW, icy=H/2/CH;
+  var irx=34, iry=7.5; // cell radii
+
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
@@ -78,6 +83,12 @@ function render(){
       if(state===0) continue;
       var b=state/(K-1);
       if(b<0.05) continue;
+      // Fade out near island
+      var ndx=(col-icx)/irx, ndy=(row-icy)/iry;
+      var nd2=ndx*ndx+ndy*ndy;
+      if(nd2<1) continue;
+      if(nd2<1.6) b*=(nd2-1)/0.6;
+      if(b<0.04) continue;
       var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
       ctx.globalAlpha=b;
       ctx.fillText(RAMP[ci],col*CW,row*CH);
