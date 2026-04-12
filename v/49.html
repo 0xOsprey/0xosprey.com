@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>49 — mycelium</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false,mMoved=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY;mMoved=true;});
+addEventListener('mouseleave',function(){mOn=false;mMoved=false;});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mMoved=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mMoved=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
+
+// Mycelium — fungal network spreading through dead matter.
+// Growing tips wander forward, deposit traces, branch sporadically.
+// The network spreads, fruit bodies form where threads cross,
+// then decay slowly back to dark. Cursor drops spore clusters.
+
+// Thread direction chars — angle mapped to ─ ╲ │ ╱
+var ACHARS=['\u2500','\u2572','\u2502','\u2571']; // ─ ╲ │ ╱
+var DENSE=['+','\u253C','\u2588']; // + ┼ █ for high density crossings
+
+var field=new Float32Array(COLS*ROWS);
+var angField=new Float32Array(COLS*ROWS);
+var DECAY=0.9988;
+var MAX_TIPS=500;
+var tips=[];
+var frame=0;
+
+function spawnTip(cx,cy,angle,life){
+  if(tips.length<MAX_TIPS) tips.push({x:cx,y:cy,a:angle,life:life||60+Math.random()*100});
+}
+function seedAt(px,py){
+  var cx=px/CW,cy=py/CH;
+  for(var i=0;i<7;i++) spawnTip(cx+(Math.random()-0.5)*2,cy+(Math.random()-0.5)*1.2,Math.random()*Math.PI*2);
+}
+
+// Initial infection — a few scattered nodes
+for(var s=0;s<5;s++) seedAt(Math.random()*W,Math.random()*H);
+
+function render(){
+  frame++;
+
+  // Field decay
+  for(var i=0;i<field.length;i++) field[i]*=DECAY;
+
+  // Spontaneous new growth from near-dead regions
+  if(frame%120===0&&tips.length<MAX_TIPS*0.4) seedAt(Math.random()*W,Math.random()*H);
+
+  // Cursor drops spores on move
+  if(mMoved&&mOn&&frame%12===0){
+    spawnTip(mx/CW+(Math.random()-0.5)*3,my/CH+(Math.random()-0.5)*1.5,Math.random()*Math.PI*2,80);
+    mMoved=false;
+  }
+
+  var alive=[];
+  for(var t=0;t<tips.length;t++){
+    var tip=tips[t];
+    tip.life--;
+    if(tip.life<=0) continue;
+
+    // Wander with slight attraction to dense areas
+    tip.a+=(Math.random()-0.5)*0.55;
+    var step=0.55;
+    tip.x+=Math.cos(tip.a)*step;
+    tip.y+=Math.sin(tip.a)*step*0.6;
+
+    var col=tip.x|0,row=tip.y|0;
+    if(col<0||col>=COLS||row<0||row>=ROWS){continue;}
+
+    var idx=row*COLS+col;
+    field[idx]=Math.min(1.8,field[idx]+0.22);
+    angField[idx]=tip.a;
+
+    // Branch: more likely when density is low
+    if(Math.random()<0.005&&tips.length<MAX_TIPS){
+      var branchAng=tip.a+0.6+(Math.random()-0.5)*0.8;
+      alive.push({x:tip.x,y:tip.y,a:branchAng,life:tip.life*0.55});
+    }
+
+    alive.push(tip);
+  }
+  tips=alive;
+
+  // Island clear zone around center content
+  var icx=W*0.5/CW, icy=H*0.5/CH;
+  var irx=30, iry=6;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var b=field[row*COLS+col];
+      if(b<0.05) continue;
+      var ndx=(col-icx)/irx,ndy=(row-icy)/iry;
+      var nd2=ndx*ndx+ndy*ndy;
+      if(nd2<1) continue;
+      if(nd2<1.8) b*=(nd2-1)/0.8;
+      b=Math.min(1,b);
+      if(b<0.04) continue;
+
+      var ang=angField[row*COLS+col];
+      var norm=((ang%Math.PI+Math.PI)%Math.PI)/Math.PI; // 0..1
+      var ch;
+      if(b>1.2) ch=DENSE[Math.min(2,(b*2)|0)];
+      else ch=ACHARS[(norm*4|0)%4];
+
+      ctx.globalAlpha=b*0.85;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
