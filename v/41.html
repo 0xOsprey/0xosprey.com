@@ -28,9 +28,9 @@ document.getElementById('card').innerHTML='';
 // Cursor parts the rain and erodes whatever it touches.
 
 var grid=new Uint8Array(COLS*ROWS);
-var SPAWN=0.09;  // spawn probability per top column per frame
-var DRAIN=0.018; // drain probability per bottom grain per frame
-var STEPS=3;     // CA steps per frame
+var SPAWN=0.03;  // spawn probability per top column per frame
+var DRAIN=0.006; // drain probability per bottom grain per frame
+var STEPS=1;     // CA steps per frame
 var RAMP=[' ','\u00B7','\u2591','\u2592','\u2593','\u2588'];
 
 // Seed a small initial pile in the center so there's something to look at
