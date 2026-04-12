@@ -20,6 +20,7 @@ ctx.font='8px Courier New';ctx.textBaseline='top';
 var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
 document.getElementById('card').innerHTML='';
 
 // N-body gravity ballet — six masses in mutual gravitational dance.
