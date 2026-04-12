@@ -72,9 +72,9 @@ function step(){
 function render(){
   for(var s=0;s<STEPS;s++) step();
 
-  // Island: clear ellipse at screen center so name + icons remain legible
-  var icx=W/2/CW, icy=H/2/CH;
-  var irx=34, iry=7.5; // cell radii
+  // Island: title center is at 50%-70px, icons at 50% — content midpoint ~38px above center
+  var icx=W/2/CW, icy=H/2/CH-3.8;
+  var irx=32, iry=7; // cell radii
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   for(var row=0;row<ROWS;row++){
