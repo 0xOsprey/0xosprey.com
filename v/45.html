@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>37 — excitable medium</title>
+<title>45 — cyclic ca</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -22,20 +22,20 @@ addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 document.getElementById('card').innerHTML='';
 
-// Belousov-Zhabotinsky excitable medium.
-// Each cell cycles through K states: quiescent → excited → refractory → quiescent.
-// A quiescent cell ignites when ≥ 2 excited neighbors surround it.
-// Broken wave fronts curl into self-sustaining spiral rotors.
-// Cursor seeds new excitations, spawning fresh spirals.
+// Cyclic cellular automaton — K colors arranged in a clock.
+// A cell advances to the next color when ≥ THRESH neighbors
+// are already at that next color. This creates expanding waves
+// that curve into spirals that devour each other in an
+// endless competition. Cursor scatters pigment.
 
-var K=18;       // state count
-var THRESH=2;   // neighbors needed to excite
-var STEPS=2;    // simulation steps per frame
+var K=15;     // number of color states
+var THRESH=2; // neighbors needed to advance
+var STEPS=1;  // CA steps per render frame
 
 var grid=new Int32Array(COLS*ROWS);
-var next=new Int32Array(COLS*ROWS);
+var gnext=new Int32Array(COLS*ROWS);
 
-// Seed random K-state field — phase singularities create spirals naturally
+// Random initialization — spiral seeds arise from phase singularities
 for(var i=0;i<grid.length;i++) grid[i]=Math.floor(Math.random()*K);
 
 var RAMP=[' ','\u00B7','.',':',';','=','+','*','#','@','\u2588'];
@@ -44,48 +44,40 @@ function step(){
   if(mOn){
     var mc=(mx/CW)|0,mr=(my/CH)|0;
     for(var dr=-4;dr<=4;dr++) for(var dc=-4;dc<=4;dc++){
-      if(dr*dr+dc*dc>16) continue;
       var rr=mr+dr,cc=mc+dc;
-      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) grid[rr*COLS+cc]=Math.floor(Math.random()*3)+1;
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) grid[rr*COLS+cc]=Math.floor(Math.random()*K);
     }
   }
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
       var state=grid[r*COLS+c];
-      if(state>0){
-        next[r*COLS+c]=(state+1)%K;
-      } else {
-        var n=0;
-        var rm1=r>0,rp1=r<ROWS-1,cm1=c>0,cp1=c<COLS-1;
-        if(rm1&&grid[(r-1)*COLS+c]===1)n++;
-        if(rp1&&grid[(r+1)*COLS+c]===1)n++;
-        if(cm1&&grid[r*COLS+c-1]===1)n++;
-        if(cp1&&grid[r*COLS+c+1]===1)n++;
-        if(rm1&&cm1&&grid[(r-1)*COLS+c-1]===1)n++;
-        if(rm1&&cp1&&grid[(r-1)*COLS+c+1]===1)n++;
-        if(rp1&&cm1&&grid[(r+1)*COLS+c-1]===1)n++;
-        if(rp1&&cp1&&grid[(r+1)*COLS+c+1]===1)n++;
-        next[r*COLS+c]=(n>=THRESH)?1:0;
-      }
+      var nxt=(state+1)%K;
+      var n=0;
+      var rm1=r>0,rp1=r<ROWS-1,cm1=c>0,cp1=c<COLS-1;
+      if(rm1&&grid[(r-1)*COLS+c]===nxt)n++;
+      if(rp1&&grid[(r+1)*COLS+c]===nxt)n++;
+      if(cm1&&grid[r*COLS+c-1]===nxt)n++;
+      if(cp1&&grid[r*COLS+c+1]===nxt)n++;
+      if(rm1&&cm1&&grid[(r-1)*COLS+c-1]===nxt)n++;
+      if(rm1&&cp1&&grid[(r-1)*COLS+c+1]===nxt)n++;
+      if(rp1&&cm1&&grid[(r+1)*COLS+c-1]===nxt)n++;
+      if(rp1&&cp1&&grid[(r+1)*COLS+c+1]===nxt)n++;
+      gnext[r*COLS+c]=(n>=THRESH)?nxt:state;
     }
   }
-  var tmp=grid;grid=next;next=tmp;
+  var tmp=grid;grid=gnext;gnext=tmp;
 }
 
 function render(){
   for(var s=0;s<STEPS;s++) step();
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-  var TAIL=Math.floor(K*0.28); // how many refractory states are visible
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
       var state=grid[row*COLS+col];
       if(state===0) continue;
-      var b;
-      if(state===1) b=1.0;
-      else if(state<=TAIL) b=1.0-(state-1)/(TAIL);
-      else continue;
-      if(b<0.04) continue;
+      var b=state/(K-1);
+      if(b<0.05) continue;
       var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
       ctx.globalAlpha=b;
       ctx.fillText(RAMP[ci],col*CW,row*CH);
