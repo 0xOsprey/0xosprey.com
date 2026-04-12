@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>41 — sand dunes</title>
+<title>41 — falling sand</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -22,99 +22,85 @@ addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 document.getElementById('card').innerHTML='';
 
-// Aeolian sand transport — wind-driven dune formation.
-// Grains saltate downwind when exposed above threshold height.
-// Shadow zones let slip-faces accumulate. Dunes slowly migrate.
-// Cursor deposits sand, seeding new dune growth.
+// Falling sand — cellular automaton gravity.
+// Grains rain from the top, pile under gravity, slide off
+// steep slopes. Bottom drains slowly so the dunes breathe.
+// Cursor parts the rain and erodes whatever it touches.
 
-var RAMP=[' ','\u2591','\u2592','\u2593','\u2588']; // ░ ▒ ▓ █
+var grid=new Uint8Array(COLS*ROWS);
+var SPAWN=0.09;  // spawn probability per top column per frame
+var DRAIN=0.018; // drain probability per bottom grain per frame
+var STEPS=3;     // CA steps per frame
+var RAMP=[' ','\u00B7','\u2591','\u2592','\u2593','\u2588'];
 
-var height=new Float32Array(COLS*ROWS);
-var heightNext=new Float32Array(COLS*ROWS);
+// Seed a small initial pile in the center so there's something to look at
+var mid=COLS>>1;
+for(var r=ROWS-12;r<ROWS;r++) for(var c=mid-10;c<mid+10;c++) if(Math.random()<0.8) grid[r*COLS+c]=1;
 
-// Initialize: random gentle bumps
-for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++)
-  height[r*COLS+c]=0.15+0.55*Math.random();
+function simStep(){
+  // Spawn from top row
+  for(var c=0;c<COLS;c++) if(!grid[c]&&Math.random()<SPAWN) grid[c]=1;
 
-var WIND_T=0;
-var THRESH=0.25;
-var TRANS=0.045;
-var SHADOW_L=5;  // shadow length (cells)
-var SHADOW_S=0.12; // shadow slope threshold per cell
-var STEPS=3;
-
-function simulate(){
-  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++) heightNext[r*COLS+c]=height[r*COLS+c];
-
-  // Wind direction: mostly rightward with slow rotation
-  var wc=Math.cos(WIND_T)<0?-1:1; // integer step, left or right
-  var wr=0; // horizontal wind only
-
-  for(var r=0;r<ROWS;r++){
-    for(var c=0;c<COLS;c++){
-      var h=height[r*COLS+c];
-      if(h<THRESH) continue;
-
-      // Shadow check: is this cell sheltered by a taller upwind cell?
-      var inShadow=false;
-      for(var s=1;s<=SHADOW_L;s++){
-        var uc=c-wc*s;
-        if(uc<0||uc>=COLS) break;
-        if(height[r*COLS+uc]-h>s*SHADOW_S){inShadow=true;break;}
-      }
-      if(inShadow) continue;
-
-      // Transport: move a fraction downwind
-      var nc=c+wc;
-      if(nc<0||nc>=COLS) nc=c; // bounce at edge
-      var q=Math.min(TRANS,h-THRESH+0.005);
-      heightNext[r*COLS+c]-=q;
-      heightNext[r*COLS+nc]+=q;
-    }
-  }
-
-  // Avalanche: smooth over-steep slopes (angle of repose)
-  var AOR=0.35;
-  for(var r=0;r<ROWS;r++){
-    for(var c=0;c<COLS;c++){
-      if(c<COLS-1){
-        var diff=heightNext[r*COLS+c]-heightNext[r*COLS+c+1];
-        if(diff>AOR){var f=diff*0.12;heightNext[r*COLS+c]-=f;heightNext[r*COLS+c+1]+=f;}
-        else if(diff<-AOR){var f=-diff*0.12;heightNext[r*COLS+c]+=f;heightNext[r*COLS+c+1]-=f;}
-      }
-      if(r<ROWS-1){
-        var diff=heightNext[r*COLS+c]-heightNext[(r+1)*COLS+c];
-        if(Math.abs(diff)>AOR){var f=diff*0.06;heightNext[r*COLS+c]-=f;heightNext[(r+1)*COLS+c]+=f;}
-      }
-    }
-  }
-
-  var tmp=height;height=heightNext;heightNext=tmp;
-}
-
-function render(){
-  WIND_T+=0.0008;
-
+  // Cursor erodes
   if(mOn){
     var mc=(mx/CW)|0,mr=(my/CH)|0;
-    for(var dr=-3;dr<=3;dr++) for(var dc=-3;dc<=3;dc++){
+    for(var dr=-4;dr<=4;dr++) for(var dc=-4;dc<=4;dc++){
+      if(dr*dr+dc*dc>16) continue;
       var rr=mr+dr,cc=mc+dc;
-      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) height[rr*COLS+cc]=Math.min(1.6,height[rr*COLS+cc]+0.06);
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) grid[rr*COLS+cc]=0;
     }
   }
 
-  for(var s=0;s<STEPS;s++) simulate();
+  // Gravity — process bottom to top
+  for(var r=ROWS-2;r>=0;r--){
+    // Shuffle column order each row to remove left/right bias
+    var start=(r&1)?0:COLS-1,dir=(r&1)?1:-1;
+    for(var ci=0;ci<COLS;ci++){
+      var c=start+ci*dir;
+      if(!grid[r*COLS+c]) continue;
+      // Fall straight down
+      if(!grid[(r+1)*COLS+c]){
+        grid[(r+1)*COLS+c]=1; grid[r*COLS+c]=0; continue;
+      }
+      // Slide diagonally
+      var dL=c>0&&!grid[(r+1)*COLS+c-1];
+      var dR=c<COLS-1&&!grid[(r+1)*COLS+c+1];
+      if(dL&&dR) dL=Math.random()<0.5;
+      if(dL){grid[(r+1)*COLS+c-1]=1;grid[r*COLS+c]=0;}
+      else if(dR){grid[(r+1)*COLS+c+1]=1;grid[r*COLS+c]=0;}
+    }
+  }
+
+  // Drain bottom row slowly
+  for(var c=0;c<COLS;c++) if(grid[(ROWS-1)*COLS+c]&&Math.random()<DRAIN) grid[(ROWS-1)*COLS+c]=0;
+}
+
+var field=new Float32Array(COLS*ROWS);
+
+function render(){
+  for(var s=0;s<STEPS;s++) simStep();
+
+  // Build smooth density field
+  for(var i=0;i<field.length;i++) field[i]=0;
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      if(!grid[r*COLS+c]) continue;
+      var idx=r*COLS+c;
+      field[idx]+=0.78;
+      if(c>0) field[idx-1]=Math.max(field[idx-1],0.28);
+      if(c<COLS-1) field[idx+1]=Math.max(field[idx+1],0.28);
+      if(r>0) field[(r-1)*COLS+c]=Math.max(field[(r-1)*COLS+c],0.14);
+    }
+  }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var h=Math.min(1,Math.max(0,height[row*COLS+col]));
-      if(h<0.08) continue;
-      var ci=Math.min(RAMP.length-1,(h*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ') continue;
-      ctx.globalAlpha=h;
-      ctx.fillText(ch,col*CW,row*CH);
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.08) continue;
+      var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
+      ctx.globalAlpha=b;
+      ctx.fillText(RAMP[ci],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;

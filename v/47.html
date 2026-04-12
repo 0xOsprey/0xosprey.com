@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>47 — cymatics</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+document.getElementById('card').innerHTML='';
+
+// Cymatics — Chladni figures on a vibrating plate.
+// Superimposed standing waves create nodal lines where
+// amplitude is near zero — the bright traces where sand collects.
+// The plate slowly tunes through resonant modes; each produces
+// a new sacred geometry. Cursor excites a local perturbation.
+
+var RAMP=[' ','\u00B7','.',':','=','+','*','#','@','\u2588'];
+
+// Current and target mode frequencies (continuous, not integer)
+var mxC=2.0,myC=3.0;
+var mxT=2.0,myT=3.0;
+var MODES=[[2,3],[3,4],[4,3],[3,5],[5,3],[4,5],[5,4],[2,5],[5,2],[4,7],[7,4],[3,7],[6,5],[5,6]];
+var modeIdx=0;
+var MORPH=0.0015; // morphing speed
+var t=0;
+
+// Cursor perturbation field
+var perturb=new Float32Array(COLS*ROWS);
+
+function nextMode(){
+  modeIdx=(modeIdx+1)%MODES.length;
+  mxT=MODES[modeIdx][0];
+  myT=MODES[modeIdx][1];
+}
+// Start transition timer
+var modeTimer=0;
+var MODE_FRAMES=600; // frames per mode
+
+function render(now){
+  t=now*0.00055;
+  mxC+=(mxT-mxC)*MORPH;
+  myC+=(myT-myC)*MORPH;
+  modeTimer++;
+  if(modeTimer>MODE_FRAMES){modeTimer=0;nextMode();}
+
+  // Perturb decay and cursor
+  for(var i=0;i<perturb.length;i++) perturb[i]*=0.94;
+  if(mOn){
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    for(var dr=-3;dr<=3;dr++) for(var dc=-3;dc<=3;dc++){
+      var rr=mr+dr,cc=mc+dc;
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) perturb[rr*COLS+cc]=Math.min(1,perturb[rr*COLS+cc]+0.4);
+    }
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+
+  for(var row=0;row<ROWS;row++){
+    var y=row/ROWS;
+    for(var col=0;col<COLS;col++){
+      var x=col/COLS;
+      // Primary mode
+      var u=Math.sin(mxC*Math.PI*x)*Math.sin(myC*Math.PI*y+t*0.2)
+           +0.45*Math.sin(myC*Math.PI*x+t*0.15)*Math.sin(mxC*Math.PI*y);
+      // Nodal line brightness: bright where |u| ≈ 0
+      var b=Math.exp(-u*u*9.0);
+      // Blend in cursor perturbation
+      b=Math.max(b,perturb[row*COLS+col]*0.8);
+      if(b<0.04) continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
+      ctx.globalAlpha=b;
+      ctx.fillText(RAMP[ci],col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
