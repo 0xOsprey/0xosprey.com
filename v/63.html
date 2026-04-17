@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>63 — cold stream</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=W/2,my=H/2,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY;});
+addEventListener('mouseleave',function(){mOn=false;});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
+
+// Cold stream — a terminal streams itself. Something curls a salmon
+// leap into the buffer frame by frame, char by char, forever. Move
+// the cursor to open the pipe wider and the stream floods faster.
+// Homage to ascii-live's delivery mechanism.
+
+var LINES=[''];
+var curCol=0;
+var frame=0;
+var pending=[];
+var cursorBlink=0;
+var streamBytes=0;
+
+function typeStr(s,pace){
+  for(var i=0;i<s.length;i++) pending.push({t:1,c:s[i],p:pace||2});
+}
+function nl(){pending.push({t:2});}
+function pause(n){pending.push({t:3,n:n});}
+
+var FRAMES=[
+  ['~~-~~~~~~.~~~~~-~~~~~~.~~-~~~~~~','~~~~.~~~~~~~~~~~.~~~~~~~~~~~~~~~'],
+  ['        .                       ','~~-~(o)>~~~~.~~~~~-~~~~~~.~~-~~~'],
+  ['      ><>                       ','     /|\\                         ','~~-~~~~~~.~~SPLASH.~~~~-~~~~~~.~~'],
+  ['    ><>                         ','       \\                        ','        `                       ','~~~-~~~~~~.~~~~~-~~~~~~.~~~-~~~~'],
+  ['                                ','         ><>                    ','           \\                   ','~~~-~~~~~~.~~~*~-~~~~~~.~~~-~~~~'],
+  ['                                ','            ><>                 ','~~~-~~~~~~.~~~~~~\\|/.~~~-~~~~~~~']
+];
+var FLABELS=['still water','splash','rising','peak','falling','splashdown'];
+
+function enqueueSession(){
+  typeStr('~ $ ',1); pause(6);
+  typeStr('curl ascii.0xosprey.com/v/stream',1); nl();
+  pause(20);
+  typeStr('[----------] 0%    0 B',1); nl();
+  pause(10);
+  for(var f=0;f<FRAMES.length;f++){
+    typeStr('# frame '+(f+1)+' : '+FLABELS[f],1); nl();
+    var block=FRAMES[f];
+    for(var ln=0;ln<block.length;ln++){
+      typeStr(block[ln],1); nl();
+    }
+    pause(20);
+  }
+  typeStr('# stream loop  ',1); pause(30);
+  typeStr('^C',1); nl(); pause(40);
+  typeStr('~ $ ',1); pause(14);
+}
+enqueueSession();
+
+function consumeChar(c){
+  if(!LINES.length) LINES=[''];
+  var L=LINES[LINES.length-1];
+  L+=c;
+  LINES[LINES.length-1]=L;
+  curCol=L.length;
+  streamBytes++;
+}
+function consumeNL(){
+  LINES.push('');
+  curCol=0;
+  if(LINES.length>ROWS-2) LINES.shift();
+}
+
+function step(){
+  frame++;
+  cursorBlink=(cursorBlink+1)%30;
+  var pace=mOn?4:1; // cursor = open pipe wider
+  for(var k=0;k<pace;k++){
+    if(!pending.length){ enqueueSession(); break; }
+    var ev=pending[0];
+    if(ev.t===1){
+      ev.p--;
+      if(ev.p<=0){ consumeChar(ev.c); pending.shift(); }
+      else break;
+    }else if(ev.t===2){
+      consumeNL(); pending.shift();
+    }else if(ev.t===3){
+      ev.n--;
+      if(ev.n<=0) pending.shift();
+      break;
+    }
+  }
+}
+
+function render(){
+  step();
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffff';
+  for(var i=0;i<LINES.length;i++){
+    var L=LINES[i];
+    // Slight fade for older lines at the top
+    var age=(LINES.length-1-i)/Math.max(1,ROWS-2);
+    ctx.globalAlpha=Math.max(0.35,1-age*0.5);
+    for(var x=0;x<L.length;x++){
+      ctx.fillText(L[x],(x+1)*CW,(i+1)*CH);
+    }
+  }
+  // Blinking caret on last line
+  var cy=LINES.length,cx=curCol+1;
+  ctx.globalAlpha=cursorBlink<15?1:0.15;
+  ctx.fillText('_',(cx)*CW,(cy)*CH);
+
+  // Status line at bottom
+  ctx.globalAlpha=0.5;
+  var ts=(streamBytes)+' B streamed '+(mOn?'  [pipe wide]':'  [pipe narrow]');
+  ctx.fillText(ts,CW,(ROWS-1)*CH);
+
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
