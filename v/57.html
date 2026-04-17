@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>57 — origami flock</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=W/2,my=H/2,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY;});
+addEventListener('mouseleave',function(){mOn=false;});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
+
+// Origami flock — paper cranes in V-formation drift across the sky.
+// Wings cycle through four folded poses, each bird phase-offset.
+// Cursor marks a thermal — the leader banks and the V wheels
+// around it before resuming its migration.
+
+var grid=new Float32Array(COLS*ROWS);
+var kind=new Uint8Array(COLS*ROWS); // 0,1 cloud,2 bird body,3 bird wing,4 stream
+
+// Poses: 3-char patterns [left,body,right], 4 frames
+var POSES=[['/','~','\\'],['>','o','<'],['\\','_','/'],['>','o','<']];
+
+var leader={x:-10,y:ROWS*0.28,vx:0.22,vy:0,heading:0};
+// Asymmetric V — right wing slightly longer
+var offsets=[
+  [0,0,0],
+  [-5,1.6,0.4],
+  [-10,3.2,0.8],
+  [-15,4.8,1.2],
+  [5,1.6,0.4],
+  [10,3.2,0.8],
+  [15,4.8,1.2]
+];
+var birds=offsets.map(function(o,i){return {ox:o[0],oy:o[1],pd:o[2],phase:i*1.3,x:leader.x+o[0],y:leader.y+o[1]};});
+
+// Cloud wisps drifting slowly
+var clouds=[];
+for(var i=0;i<14;i++){
+  clouds.push({x:Math.random()*COLS,y:Math.random()*ROWS*0.6,w:3+Math.random()*8,s:0.02+Math.random()*0.04,g:0.2+Math.random()*0.25});
+}
+
+var frame=0;
+var thermalHold=0;
+
+function step(){
+  frame++;
+  // Clouds drift
+  for(var c=0;c<clouds.length;c++){
+    clouds[c].x+=clouds[c].s;
+    if(clouds[c].x-clouds[c].w>COLS){clouds[c].x=-clouds[c].w;clouds[c].y=Math.random()*ROWS*0.6;}
+  }
+
+  var targetVx=0.22,targetVy=0;
+  if(mOn){
+    var tcx=mx/CW,tcy=my/CH;
+    var dx=tcx-leader.x,dy=tcy-leader.y;
+    var d=Math.sqrt(dx*dx+dy*dy);
+    if(d<COLS*0.22){
+      // Thermal — orbit the cursor
+      thermalHold=Math.min(120,thermalHold+2);
+      var ang=Math.atan2(dy,dx);
+      // tangent direction for circling
+      var tangent=ang+Math.PI*0.5;
+      targetVx=Math.cos(tangent)*0.28 + dx*0.008;
+      targetVy=Math.sin(tangent)*0.18 + dy*0.006;
+    }else{
+      thermalHold=Math.max(0,thermalHold-1);
+      targetVx=0.22+dx*0.002;
+      targetVy=dy*0.004;
+    }
+  }else{
+    thermalHold=Math.max(0,thermalHold-1);
+    // Lazy sine drift in y
+    targetVy=Math.sin(frame*0.004)*0.05;
+  }
+  leader.vx+=(targetVx-leader.vx)*0.04;
+  leader.vy+=(targetVy-leader.vy)*0.04;
+  leader.x+=leader.vx;
+  leader.y+=leader.vy;
+  leader.heading=Math.atan2(leader.vy,leader.vx);
+  // Wrap
+  if(leader.x>COLS+20){leader.x=-20;leader.y=ROWS*(0.15+Math.random()*0.35);}
+  if(leader.x<-25){leader.x=COLS+15;}
+
+  // Followers — rotate V to match heading
+  var ch=Math.cos(leader.heading),sh=Math.sin(leader.heading);
+  for(var b=0;b<birds.length;b++){
+    var bb=birds[b];
+    var rx=bb.ox*ch - bb.oy*sh;
+    var ry=bb.ox*sh + bb.oy*ch;
+    var tx=leader.x+rx,ty=leader.y+ry;
+    var lag=0.12-bb.pd*0.02;
+    bb.x+=(tx-bb.x)*lag;
+    bb.y+=(ty-bb.y)*lag;
+  }
+}
+
+function stampChar(col,row,k,g){
+  if(col<0||col>=COLS||row<0||row>=ROWS) return;
+  var id=row*COLS+col;
+  if(grid[id]<g){grid[id]=g;kind[id]=k;}
+}
+
+function placeCloud(c){
+  var y=Math.round(c.y);
+  for(var i=0;i<c.w;i++){
+    var x=Math.round(c.x+i);
+    stampChar(x,y,1,c.g*(1-Math.abs(i-c.w/2)/c.w*0.8));
+  }
+}
+
+function placeBird(b,idx){
+  var bx=Math.round(b.x),by=Math.round(b.y);
+  var p=(Math.floor(frame*0.18 + b.phase*4))%4;
+  // store pose in high nibble of kind
+  // body center
+  stampChar(bx,by,2|(p<<4),1.3);
+  stampChar(bx-1,by,3|(p<<4),1.1);
+  stampChar(bx+1,by,3|(p<<4),1.1);
+  // streamer trail (crane tail)
+  if(idx>0){
+    var tx=bx-2;
+    if(tx>=0) stampChar(tx,by,4,0.45);
+  }
+}
+
+function render(){
+  for(var i=0;i<grid.length;i++){grid[i]=0;kind[i]=0;}
+
+  for(var c=0;c<clouds.length;c++) placeCloud(clouds[c]);
+  step();
+  for(var b=0;b<birds.length;b++) placeBird(birds[b],b);
+
+  // Thermal halo — when cursor hot
+  if(thermalHold>8){
+    var cx=Math.round(mx/CW),cy=Math.round(my/CH);
+    var R=6+thermalHold*0.05;
+    for(var a=0;a<30;a++){
+      var ang=a*Math.PI*2/30+frame*0.05;
+      var rr=R+Math.sin(ang*3+frame*0.1)*1.5;
+      var tx=Math.round(cx+Math.cos(ang)*rr),ty=Math.round(cy+Math.sin(ang)*rr*0.6);
+      if(tx>=0&&tx<COLS&&ty>=0&&ty<ROWS){
+        var id=ty*COLS+tx;
+        if(grid[id]<0.35){grid[id]=0.35;kind[id]=1;}
+      }
+    }
+  }
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffff';
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      var id=row*COLS+col;
+      var g=grid[id];if(g<0.05) continue;
+      var k=kind[id]&0xF,pose=(kind[id]>>4)&0xF,ch;
+      if(k===1) ch=(g>0.3)?'~':'.';
+      else if(k===2) ch=POSES[pose][1];
+      else if(k===3){
+        var bxCenter=null;
+        // Determine if left or right wing — we stored symmetrically so check neighbor
+        // Simpler: use col parity relative to nearest body tile
+        ch=(grid[id-1+COLS*0]>0&&(kind[id-1]&0xF)===2)?POSES[pose][2]:POSES[pose][0];
+      }
+      else if(k===4) ch='.';
+      else continue;
+      ctx.globalAlpha=Math.min(1,g);
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
