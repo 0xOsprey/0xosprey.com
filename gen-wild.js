@@ -31,7 +31,7 @@ html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 <div class="content"><div class="card" id="card">
 <div class="name">joe coll</div><div class="sub">fka osprey</div>
 <div class="links">
-<a href="https://x.com/0xOsprey">x</a>
+<a href="https://x.com/0x_Osprey">x</a>
 <a href="https://github.com/0xOsprey">github</a>
 <a href="https://t.me/OspreyJoe">telegram</a>
 <a href="mailto:hi@0xosprey.com">email</a>

@@ -62,7 +62,7 @@ var FOS=2,FCOLS=COLS*FOS,FROWS=ROWS*FOS;
 ${MOUSE}
 // Terminal prompt card
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 
 // Organic island: distance field with noise perturbation
 var cardRect={l:0,t:0,r:0,b:0,cx:0,cy:0};
@@ -164,7 +164,7 @@ var CH=12,CW=6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cardR={l:0,t:0,r:0,b:0,cx:0,cy:0};
 function updI(){var r=cardEl.getBoundingClientRect();cardR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH,cx:(r.left+r.right)/2/CW,cy:(r.top+r.bottom)/2/CH};}
 updI();
@@ -253,7 +253,7 @@ var CH=12,CW=6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cR={l:0,t:0,r:0,b:0};
 function updI(){var r=cardEl.getBoundingClientRect();cR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH};}
 updI();
@@ -323,7 +323,7 @@ var CH=13,CW=6.6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cR={l:0,t:0,r:0,b:0};
 function updI(){var r=cardEl.getBoundingClientRect();cR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH};}
 updI();
@@ -395,7 +395,7 @@ var CH=12,CW=6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cR={l:0,t:0,r:0,b:0};
 function updI(){var r=cardEl.getBoundingClientRect();cR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH};}
 updI();
@@ -489,7 +489,7 @@ var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 var FOS=2,FCOLS=COLS*FOS,FROWS=ROWS*FOS;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cR={l:0,t:0,r:0,b:0,cx:0,cy:0};
 function updI(){var r=cardEl.getBoundingClientRect();cR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH,cx:(r.left+r.right)/2/CW,cy:(r.top+r.bottom)/2/CH};}
 updI();
@@ -574,7 +574,7 @@ var CH=12,CW=6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 ${MOUSE}
 var cardEl=document.getElementById('card');
-cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0xOsprey">x.com/0xOsprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
+cardEl.innerHTML='<div class="prompt">joe@osprey<span class="prompt-dim">:</span>~<span class="prompt-dim">$</span><span class="cursor"></span></div><div class="links"><a href="https://x.com/0x_Osprey">x.com/0x_Osprey</a><a href="https://github.com/0xOsprey">github.com/0xOsprey</a><a href="https://t.me/OspreyJoe">t.me/OspreyJoe</a><a href="mailto:hi@0xosprey.com">hi@0xosprey.com</a></div>';
 var cR={l:0,t:0,r:0,b:0};
 function updI(){var r=cardEl.getBoundingClientRect();cR={l:r.left/CW,t:r.top/CH,r:r.right/CW,b:r.bottom/CH};}
 updI();
