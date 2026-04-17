@@ -281,7 +281,7 @@ return `<!DOCTYPE html>
   <div class="name">joe coll</div>
   <div class="sub">fka osprey</div>
   <div class="links">
-    <a href="https://x.com/0xOsprey">x</a>
+    <a href="https://x.com/0x_Osprey">x</a>
     <a href="https://github.com/0xOsprey">github</a>
     <a href="https://t.me/OspreyJoe">telegram</a>
     <a href="mailto:hi@0xosprey.com">email</a>
