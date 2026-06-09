@@ -88,7 +88,7 @@ function stamp(mi,a255,sx,sy){
   }
 }
   var drops=[];
-  for(var c=0;c<COLS;c++) drops.push({y:Math.random()*ROWS*2-ROWS, speed:0.3+Math.random()*0.7, len:4+Math.random()*12|0});
+  for(var c=0;c<COLS;c++) drops.push({y:Math.random()*ROWS*2-ROWS, speed:0.15+Math.random()*0.35, len:4+Math.random()*12|0});
 
   var mouseX=-1,mouseY=-1,mouseOn=false;
   document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
@@ -128,11 +128,11 @@ function stamp(mi,a255,sx,sy){
         var cx=c*CW+CW/2, cy=d.y*CH;
         var dx=cx-mouseX, dy=cy-mouseY;
         var dist=Math.sqrt(dx*dx+dy*dy);
-        if(dist<120) d.speed=Math.max(0.1,d.speed*0.95);
-        else d.speed=Math.min(1.2,d.speed*1.01);
+        if(dist<120) d.speed=Math.max(0.05,d.speed*0.95);
+        else d.speed=Math.min(0.6,d.speed*1.01);
       }
       d.y+=d.speed;
-      if(d.y-d.len>ROWS){d.y=-d.len;d.speed=0.3+Math.random()*0.7;d.len=4+Math.random()*12|0;}
+      if(d.y-d.len>ROWS){d.y=-d.len;d.speed=0.15+Math.random()*0.35;d.len=4+Math.random()*12|0;}
       for(var t=0;t<d.len;t++){
         var row=Math.floor(d.y)-t;
         if(row<0||row>=ROWS) continue;
@@ -164,7 +164,7 @@ function stamp(mi,a255,sx,sy){
         v*=fade;
         if(v<0.03)continue;
         var ai=Math.max(1,Math.min(10,Math.round(v*10)));
-        var hash=((row*131+col*997+(fc>>2))*2654435761)>>>0;
+        var hash=((row*131+col*997+(fc>>3))*2654435761)>>>0;
         stamp(hash%GLYPHS.length,(ALPHA[ai]*255)|0,((col*CW+0.5)|0)-GOX,rpy);
       }
     }

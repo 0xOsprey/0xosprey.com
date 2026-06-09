@@ -5,83 +5,110 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
-#bg{position:fixed;inset:0;z-index:0;user-select:none}
-.r{white-space:pre;color:#d4d0c8}
-.a1{opacity:.06}.a2{opacity:.12}.a3{opacity:.20}.a4{opacity:.30}
-.a5{opacity:.42}.a6{opacity:.55}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
+canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.5}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.4}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
-.r{font:11px/13px 'Courier New',monospace;height:13px}
 </style></head><body>
-<div id="bg"></div>
+<canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
 <script>
-
+(function(){
 var CH=13,CW=6.6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
+var cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
 
-var mouseX=-1,mouseY=-1,mouseOn=false,prevMX=-1,prevMY=-1;
-document.addEventListener('mousemove',function(e){mouseOn=true;prevMX=mouseX;prevMY=mouseY;mouseX=e.clientX;mouseY=e.clientY});
+var mouseX=-1,mouseY=-1,mouseOn=false;
+document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
 document.addEventListener('mouseleave',function(){mouseOn=false});
 document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
 document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY;}},{passive:true});
 document.addEventListener('touchend',function(){mouseOn=false});
+document.getElementById('card').innerHTML='';
 
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+// Slow starfield — drifting through deep space. Stars twinkle on
+// their own rhythms; the Milky Way's faint river of dust drifts
+// behind them; now and then a meteor cuts across. Steer with the
+// cursor — the whole sky leans toward it.
 
-// Wrap characters in twinkle spans
-function wrapTwinkle(el){
-  if(!el)return;
-  var text=el.textContent;
-  var html='';
-  for(var i=0;i<text.length;i++){
-    if(text[i]===' '){html+=' ';continue;}
-    var dur=(1.5+Math.random()*3).toFixed(2);
-    var del=(Math.random()*3).toFixed(2);
-    html+='<span class="tw" style="animation:twinkle '+dur+'s ease-in-out '+del+'s infinite">'+text[i]+'</span>';
+var RAMP=' ·.+*•✦✶✸';
+var RAMP2=' ∙‧×♦◆★█';
+var CHARS=RAMP+RAMP2;
+
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='11px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
+    }
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
   }
-  el.innerHTML=html;
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF080606;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(6+(212-6)*i/255),lg=Math.round(6+(208-6)*i/255),lb=Math.round(8+(200-8)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
 }
-wrapTwinkle(document.getElementById('promptEl'));
-var linkEls=document.querySelectorAll('#linksEl a');
-for(var li=0;li<linkEls.length;li++) wrapTwinkle(linkEls[li]);
-
-// Elliptical fade parameters
-var ccx=0,ccy=0,crx=1,cry=1;
-function updFade(){
-  var r=cardEl.getBoundingClientRect();
-  ccx=(r.left+r.right)/2/CW;
-  ccy=(r.top+r.bottom)/2/CH;
-  crx=r.width/2/CW+3;
-  cry=r.height/2/CH+2;
+function stamp(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
+  }
 }
-updFade();
+var SINN=4096,sinLUT=new Float32Array(SINN);
+for(var i=0;i<SINN;i++)sinLUT[i]=Math.sin(i/SINN*Math.PI*2);
+function fsin(a){var x=a*(SINN/(Math.PI*2));x-=Math.floor(x/SINN)*SINN;return sinLUT[x|0];}
 
 var STAR_N=800;
 var stars=[];
-for(var i=0;i<STAR_N;i++)stars.push({x:(Math.random()-.5)*3,y:(Math.random()-.5)*3,z:Math.random()});
+for(var i=0;i<STAR_N;i++)stars.push({
+  x:(Math.random()-.5)*3,y:(Math.random()-.5)*3,z:Math.random(),
+  tf:0.4+Math.random()*1.6,tp:Math.random()*6.28
+});
 var grid=new Float32Array(COLS*ROWS);
-var RAMP=' \u00B7.+*\u2022\u2726\u2736\u2738';
-var RAMP2=' \u2219\u2027\u00D7\u2666\u25C6\u2605\u2588';
 var steerX=0,steerY=0;
 
-var bgEl=document.getElementById('bg');
-var rowEls=[];
-for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
+// Meteors: rare, fast, bright — the grid decay paints their tails
+var meteor=null,meteorT=300+Math.random()*500|0;
+function spawnMeteor(){
+  var side=Math.random();
+  var x,y,ang;
+  if(side<0.5){x=Math.random()*COLS;y=-2;ang=Math.PI*(0.25+Math.random()*0.5);}
+  else if(side<0.75){x=-2;y=Math.random()*ROWS*0.5;ang=Math.random()*0.7-0.2;}
+  else{x=COLS+2;y=Math.random()*ROWS*0.5;ang=Math.PI-(Math.random()*0.7-0.2);}
+  meteor={x:x,y:y,vx:Math.cos(ang)*3.4,vy:Math.sin(ang)*3.4*0.55,life:60};
+}
 
 function render(now){
-  updFade();
+  var t=now*0.001;
   for(var i=0;i<grid.length;i++)grid[i]*=.75;
   if(mouseOn){steerX+=((mouseX/innerWidth-.5)*.006-steerX)*.03;steerY+=((mouseY/innerHeight-.5)*.006-steerY)*.03;}
   else{steerX*=.99;steerY*=.99;}
@@ -93,35 +120,65 @@ function render(now){
     var sx=s.x/s.z,sy=s.y/s.z;
     var col=Math.floor((sx+1)*.5*COLS),row=Math.floor((sy+1)*.5*ROWS);
     if(col<0||col>=COLS||row<0||row>=ROWS)continue;
-    var brightness=Math.min(1,(1-s.z)*1.8);
+    // each star breathes on its own rhythm; far stars twinkle harder
+    var tw=0.72+0.28*fsin(t*s.tf+s.tp);
+    var brightness=Math.min(1,(1-s.z)*1.8)*tw;
     grid[row*COLS+col]=Math.max(grid[row*COLS+col],brightness);
-    for(var t=1;t<4;t++){
-      var pz=s.z+speed*t*4;if(pz>1)continue;
+    for(var k=1;k<4;k++){
+      var pz=s.z+speed*k*4;if(pz>1)continue;
       var psx=s.x/pz,psy=s.y/pz;
       var pc=Math.floor((psx+1)*.5*COLS),pr=Math.floor((psy+1)*.5*ROWS);
-      if(pc>=0&&pc<COLS&&pr>=0&&pr<ROWS)grid[pr*COLS+pc]=Math.max(grid[pr*COLS+pc],brightness*(1-t/4)*.5);
+      if(pc>=0&&pc<COLS&&pr>=0&&pr<ROWS)grid[pr*COLS+pc]=Math.max(grid[pr*COLS+pc],brightness*(1-k/4)*.5);
     }
   }
+
+  // meteor
+  if(meteor){
+    var m=meteor;
+    for(var k=0;k<4;k++){
+      var mc2=Math.floor(m.x+m.vx*k*0.25),mr2=Math.floor(m.y+m.vy*k*0.25);
+      if(mc2>=0&&mc2<COLS&&mr2>=0&&mr2<ROWS)
+        grid[mr2*COLS+mc2]=Math.max(grid[mr2*COLS+mc2],0.85);
+    }
+    m.x+=m.vx;m.y+=m.vy;
+    if(--m.life<=0||m.x<-4||m.x>COLS+4||m.y>ROWS+4)meteor=null;
+  }else if(--meteorT<=0){
+    spawnMeteor();
+    meteorT=350+Math.random()*550|0;
+  }
+
+  inten.fill(0);buf32.fill(BG);
+
+  // The Milky Way: a faint, grainy river of dust behind the stars,
+  // drifting almost imperceptibly.
+  var mwOff=COLS*0.5+fsin(t*0.013)*COLS*0.18;
+  var ca=0.82,sa=0.57; // band tilt
+  var bw=COLS*0.16;
   for(var row=0;row<ROWS;row++){
-    var line='';
+    var rpy=row*CH-GOY;
+    var ru=row*1.97*sa;
     for(var col=0;col<COLS;col++){
       var v=grid[row*COLS+col];
-      // Elliptical fade
-      var ndx=(col-ccx)/crx;
-      var ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      v*=fade;
-      if(v<.04){line+=' ';continue;}
-      var ramp=((row*131+col*997)&1)?RAMP:RAMP2;
-      var ci=Math.min(ramp.length-1,(v*ramp.length)|0);
-      var ai=Math.max(1,Math.min(10,Math.round(v*10)));
-      line+='<span class="a'+ai+'">'+ramp[ci]+'</span>';
+      if(v<.04){
+        var d=(col*ca+ru-mwOff)/bw;
+        if(d>-2&&d<2){
+          var env=Math.exp(-d*d);
+          var g=fsin(col*0.37+row*0.83+t*0.05)*fsin(col*0.11-row*0.29-t*0.03);
+          var mw=env*(0.055+0.055*g);
+          if(mw>0.035)stamp(1,(mw*255)|0,((col*CW+0.5)|0)-GOX,rpy);
+        }
+        continue;
+      }
+      if(v>1)v=1;
+      var base=((row*131+col*997)&1)?0:8;
+      var ci=Math.min(7,(v*8)|0);
+      if(ci===0)continue;
+      stamp(base+ci,(v*255)|0,((col*CW+0.5)|0)-GOX,rpy);
     }
-    rowEls[row].innerHTML=line;
   }
+  ctx.putImageData(img,0,0);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
-
+})();
 </script></body></html>

@@ -63,7 +63,7 @@ var ALPHA=[0,.06,.14,.22,.32,.44,.56,.68,.80,.90,1];
 // Software glyph renderer: prerendered alpha masks stamped into a
 // pixel buffer, one putImageData per frame instead of per-cell
 // fillText. Visuals identical; far less canvas call overhead.
-var CHARS=CONTOUR_CHARS.join('');
+var CHARS=CONTOUR_CHARS.join('')+'.:';
 var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
 var masks=[],mbox=[];
 (function(){
@@ -133,7 +133,7 @@ var fc=0;
 function render(now){
   if(fc%30===0){updIsland();updFade();}
   fc++;
-  var t=now*0.00008;
+  var t=now*0.00013;
   // fbm via per-frame hash lattices (identical values, far fewer hashes)
   var xa=t,xb=t+COLS*0.03,ya=t*0.7,yb=t*0.7+ROWS*0.04;
   var L1=buildLat(1,xa,xb,ya,yb),L2=buildLat(2,xa,xb,ya,yb),
@@ -150,36 +150,59 @@ function render(now){
         var dx=col-mc;
         if(dx>-15&&dx<15&&dy>-15&&dy<15){
           var d=Math.sqrt(dx*dx+dy*dy);
-          if(d<15)e+=0.15*(1-d/15);
+          if(d<15)e+=0.30*(1-d/15);
         }
       }
-      elevation[row*COLS+col]=e;
+      elevation[row*COLS+col]=e*0.5+0.5;
     }
   }
-  var NUM_CONTOURS=12;
+  var NUM_CONTOURS=20;
   inten.fill(0);buf32.fill(BG);
+  // A low sun orbits the map; slopes that face it catch the light.
+  var lt=now*0.00005;
+  var ldx=Math.cos(lt),ldy=Math.sin(lt);
+  // The sea breathes — a slow tide floods and drains the basins.
+  var sea=0.42+0.020*Math.sin(now*0.00006+1.3);
   for(var row=0;row<ROWS;row++){
     var rpy=row*CH-GOY;
+    var rm=(row>0?row-1:0)*COLS,rp=(row<ROWS-1?row+1:row)*COLS;
     for(var col=0;col<COLS;col++){
+      var px=((col*CW+0.5)|0)-GOX;
       var h=elevation[row*COLS+col];
+      var hL=elevation[row*COLS+(col>0?col-1:0)];
+      var hR=elevation[row*COLS+(col<COLS-1?col+1:col)];
+      var shade=0.55+((hR-hL)*ldx+(elevation[rp+col]-elevation[rm+col])*ldy)*16;
+      if(shade<0.15)shade=0.15;if(shade>1.35)shade=1.35;
+
+      if(h<sea){
+        var depth=sea-h;
+        if(depth<0.012){
+          stamp(4,82,px,rpy); // shoreline glows
+        }else{
+          var wa=0.115-depth*0.30+0.05*Math.sin(col*0.35+row*0.9+now*0.0022+depth*30);
+          if(wa>0.03)stamp(5,(wa*255)|0,px,rpy);
+        }
+        continue;
+      }
+
       var contourLevel=h*NUM_CONTOURS;
       var frac=contourLevel%1;
       var nearContour=Math.min(frac,1-frac);
-      var hR=col<COLS-1?elevation[row*COLS+col+1]:h;
-      var hD=row<ROWS-1?elevation[(row+1)*COLS+col]:h;
-      var gx=hR-h,gy=hD-h;
-      if(nearContour<0.12){
-        var v=1-nearContour/0.12;
-        // Elliptical fade
-        var ndx=(col-ccx)/crx;
-        var ndy=(row-ccy)/cry;
-        var nd=ndx*ndx+ndy*ndy;
-        var fade=nd<1?1:1;
-        v*=fade;
-        if(v<0.03)continue;
-        var ci=Math.floor(contourLevel)%CONTOUR_CHARS.length;
-        var ai=Math.max(1,Math.min(10,Math.round(v*8+2)));
-        stamp(ci,(ALPHA[ai]*255)|0,((col*CW+0.5)|0)-GOX,rpy);
+      if(nearContour<0.10){
+        var v=1-nearContour/0.10;
+        var lvl=Math.floor(contourLevel);
+        var ci=lvl%CONTOUR_CHARS.length;
+        // index contours (every 4th) ride brighter, like a real map
+        var a=(0.20+0.58*v)*(lvl%4===0?1.30:0.92)*shade;
+        if(a>1)a=1;
+        if(a<0.03)continue;
+        stamp(ci,(a*255)|0,px,rpy);
+      }else{
+        // hypsometric relief between the lines, lit by the moving sun
+        var fa=(0.045+0.50*(h-sea))*shade;
+        if(fa<=0.025)continue;
+        if(fa>0.30)fa=0.30;
+        stamp(h>sea+0.22?10:9,(fa*255)|0,px,rpy); // ':' uplands, '.' lowlands
       }
     }
   }

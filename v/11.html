@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>11 — dla frost</title>
+<title>11 — gravity ballet</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -23,97 +23,175 @@ addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
 document.getElementById('card').innerHTML='';
 
-// Diffusion-limited aggregation — frost on glass.
-// Walkers do random walks until they touch the growing crystal,
-// then freeze permanently. Cursor clicks seed new nucleation points.
+// N-body gravity ballet — six masses in mutual gravitational dance.
+// Tracers swarm among them, catching gravity slings and orbital resonances.
+// Trail decay is very slow; the screen becomes a record of all trajectories.
+// Cursor is an invisible seventh mass.
 
-var frozen=new Uint8Array(COLS*ROWS);
-var N=280;
-var wx=new Float32Array(N),wy=new Float32Array(N);
-var STEPS=6; // walker steps per frame
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
 
-// Seed central cluster + scattered seeds
-var cc=COLS>>1,cr=ROWS>>1;
-for(var dr=-2;dr<=2;dr++) for(var dc=-2;dc<=2;dc++) frozen[(cr+dr)*COLS+(cc+dc)]=1;
-for(var s=0;s<10;s++) frozen[Math.floor(Math.random()*ROWS)*COLS+Math.floor(Math.random()*COLS)]=1;
-
-function spawnWalker(i){
-  wx[i]=Math.random()*COLS;
-  wy[i]=Math.random()*ROWS;
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var CHARS=DIRS.join('');
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='8px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
+    }
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
+  }
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF080606;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(6+(255-6)*i/255),lg=Math.round(6+(255-6)*i/255),lb=Math.round(8+(255-8)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
 }
-for(var i=0;i<N;i++) spawnWalker(i);
+function stampG(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
+  }
+}
+var G=1800; // gravitational constant
+var SOFT=22; // softening length (px)
 
-function touching(c,r){
-  return (c>0&&frozen[r*COLS+c-1])||(c<COLS-1&&frozen[r*COLS+c+1])||
-         (r>0&&frozen[(r-1)*COLS+c])||(r<ROWS-1&&frozen[(r+1)*COLS+c]);
+var NB=6;
+var bx=new Float32Array(NB),by=new Float32Array(NB);
+var bvx=new Float32Array(NB),bvy=new Float32Array(NB);
+var RING=Math.min(W,H)*0.27;
+
+// Six bodies in a ring, initially near circular orbit velocity
+for(var i=0;i<NB;i++){
+  var ang=i/NB*Math.PI*2;
+  bx[i]=W/2+Math.cos(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  by[i]=H/2+Math.sin(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  var v=Math.sqrt(G*(NB-1)/RING)*0.88;
+  bvx[i]=(-Math.sin(ang)*v)+(Math.random()-0.5)*v*0.2;
+  bvy[i]=(Math.cos(ang)*v)+(Math.random()-0.5)*v*0.2;
 }
 
-function crystalChar(col,row){
-  var L=col>0&&frozen[row*COLS+col-1];
-  var R=col<COLS-1&&frozen[row*COLS+col+1];
-  var U=row>0&&frozen[(row-1)*COLS+col];
-  var D=row<ROWS-1&&frozen[(row+1)*COLS+col];
-  var UL=col>0&&row>0&&frozen[(row-1)*COLS+col-1];
-  var UR=col<COLS-1&&row>0&&frozen[(row-1)*COLS+col+1];
-  var h=L||R,v=U||D;
-  if(h&&v) return '\u253C'; // ┼
-  if(h)    return '\u2500'; // ─
-  if(v)    return '\u2502'; // │
-  if(UL||( col>0&&row<ROWS-1&&frozen[(row+1)*COLS+col-1])) return '\u2572'; // ╲
-  if(UR||( col<COLS-1&&row<ROWS-1&&frozen[(row+1)*COLS+col+1])) return '\u2571'; // ╱
-  return '\u00B7'; // ·
+var NT=90; // tracers
+var tx=new Float32Array(NT),ty=new Float32Array(NT);
+var tvx=new Float32Array(NT),tvy=new Float32Array(NT);
+for(var i=0;i<NT;i++){
+  var bi=i%NB;
+  var ang2=Math.random()*Math.PI*2;
+  var r2=(0.05+Math.random()*0.3)*RING;
+  tx[i]=bx[bi]+Math.cos(ang2)*r2;
+  ty[i]=by[bi]+Math.sin(ang2)*r2;
+  tvx[i]=bvx[bi]+(Math.random()-0.5)*2;
+  tvy[i]=bvy[bi]+(Math.random()-0.5)*2;
+}
+
+var field=new Float32Array(COLS*ROWS);
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+var DECAY=0.991; // extremely slow fade — trails accumulate
+
+function accel(px,py,excludeBody){
+  var ax=0,ay=0;
+  for(var j=0;j<NB;j++){
+    if(j===excludeBody) continue;
+    var dx=bx[j]-px,dy=by[j]-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  if(mOn){
+    var dx=mx-px,dy=my-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G*0.6/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  return {ax:ax,ay:ay};
+}
+
+function stamp(x,y,vx,vy,strength,radius){
+  var gc=x/CW,gr=y/CH;
+  var c0=Math.max(0,(gc-radius-1)|0),c1=Math.min(COLS-1,(gc+radius+1)|0);
+  var r0=Math.max(0,(gr-radius-1)|0),r1=Math.min(ROWS-1,(gr+radius+1)|0);
+  var inv=1/(radius*radius+0.1);
+  for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
+    var dc=c-gc,dr=r-gr;
+    var g=strength*Math.exp(-(dc*dc+dr*dr)*inv);
+    var idx=r*COLS+c;
+    field[idx]=Math.min(1.5,field[idx]+g);
+    dfx[idx]+=vx*g; dfy[idx]+=vy*g;
+  }
 }
 
 function render(){
-  // Cursor seeds crystal on hover
-  if(mOn){
-    var mc=(mx/CW)|0,mr=(my/CH)|0;
-    if(mc>=0&&mc<COLS&&mr>=0&&mr<ROWS) frozen[mr*COLS+mc]=1;
+  for(var i=0;i<field.length;i++){field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;}
+
+  // Leapfrog integration for bodies
+  for(var i=0;i<NB;i++){
+    var a=accel(bx[i],by[i],i);
+    bvx[i]+=a.ax; bvy[i]+=a.ay;
+    bvx[i]*=0.9995; bvy[i]*=0.9995;
+    bx[i]+=bvx[i]; by[i]+=bvy[i];
+    // Soft wall
+    var push=0.4;
+    if(bx[i]<W*0.04)bvx[i]+=push; if(bx[i]>W*0.96)bvx[i]-=push;
+    if(by[i]<H*0.04)bvy[i]+=push; if(by[i]>H*0.96)bvy[i]-=push;
+    stamp(bx[i],by[i],bvx[i],bvy[i],0.65,3.2);
   }
 
-  // Auto-fill enclosed gaps: cells with all 4 orthogonal neighbors frozen close immediately.
-  // Cells with 3 frozen neighbors fill quickly too — this seals off remaining blank islands.
-  for(var r=1;r<ROWS-1;r++){
-    for(var c=1;c<COLS-1;c++){
-      if(frozen[r*COLS+c]) continue;
-      var L=frozen[r*COLS+c-1],R=frozen[r*COLS+c+1],U=frozen[(r-1)*COLS+c],D=frozen[(r+1)*COLS+c];
-      var n=(L?1:0)+(R?1:0)+(U?1:0)+(D?1:0);
-      if(n===4) frozen[r*COLS+c]=1;           // fully enclosed — fill immediately
-      else if(n===3&&Math.random()<0.08) frozen[r*COLS+c]=1; // 3-sided — fill quickly
+  // Update tracers
+  for(var i=0;i<NT;i++){
+    var a=accel(tx[i],ty[i],-1);
+    tvx[i]+=a.ax; tvy[i]+=a.ay;
+    tvx[i]*=0.999; tvy[i]*=0.999;
+    tx[i]+=tvx[i]; ty[i]+=tvy[i];
+    if(tx[i]<-60||tx[i]>W+60||ty[i]<-60||ty[i]>H+60){
+      var bi=Math.floor(Math.random()*NB);
+      var ang3=Math.random()*Math.PI*2,r3=(0.1+Math.random()*0.25)*RING;
+      tx[i]=bx[bi]+Math.cos(ang3)*r3; ty[i]=by[bi]+Math.sin(ang3)*r3;
+      tvx[i]=bvx[bi]+(Math.random()-0.5)*1.5; tvy[i]=bvy[bi]+(Math.random()-0.5)*1.5;
     }
+    stamp(tx[i],ty[i],tvx[i],tvy[i],0.2,1.8);
   }
 
-  // Move walkers
-  for(var i=0;i<N;i++){
-    for(var s=0;s<STEPS;s++){
-      var dir=Math.floor(Math.random()*4);
-      wx[i]+=(dir===0?1:dir===1?-1:0);
-      wy[i]+=(dir===2?1:dir===3?-1:0);
-      if(wx[i]<0)wx[i]+=COLS; if(wx[i]>=COLS)wx[i]-=COLS;
-      if(wy[i]<0)wy[i]+=ROWS; if(wy[i]>=ROWS)wy[i]-=ROWS;
-      var c=wx[i]|0,r=wy[i]|0;
-      if(!frozen[r*COLS+c]&&touching(c,r)){
-        frozen[r*COLS+c]=1;
-        spawnWalker(i);
-        break;
-      }
-    }
-  }
-
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-
-  // Draw walkers as faint dots
-  ctx.globalAlpha=0.07;
-  for(var i=0;i<N;i++) ctx.fillText('\u00B7',(wx[i]|0)*CW,(wy[i]|0)*CH);
-
-  // Draw frozen crystal
-  ctx.globalAlpha=1;
+  inten.fill(0);buf32.fill(BG);
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      if(!frozen[row*COLS+col]) continue;
-      ctx.fillText(crystalChar(col,row),col*CW,row*CH);
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.03) continue;
+      var idx=row*COLS+col;
+      var ang=Math.atan2(dfy[idx],dfx[idx]);
+      var di=((Math.round(ang/(Math.PI/4))%8)+8)%8;
+      stampG(di,(b*255)|0,((col*CW+0.5)|0)-GOX,row*CH-GOY);
     }
   }
+  ctx.putImageData(img,0,0);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);

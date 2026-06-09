@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>9 — vibrating membrane</title>
+<title>9 — physarum</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,15 +21,19 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+// Physarum polycephalum — slime mold network.
+// Agents follow chemical trails and deposit more trail,
+// self-organizing into branching vein networks.
+// Cursor deposits food — network grows toward it.
+
+var DIRS=['─','╲','│','╱','─','╲','│','╱'];
 
 // Software glyph renderer: prerendered alpha masks stamped into a
 // pixel buffer, one putImageData per frame instead of per-cell
 // fillText. Visuals identical; far less canvas call overhead.
-var CHARS=RAMP;
+var CHARS=DIRS.join('');
 var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
 var masks=[],mbox=[];
 (function(){
@@ -84,108 +79,87 @@ function stamp(mi,a255,sx,sy){
     }
   }
 }
-
-// 2D wave equation on a rectangular membrane:
-// ∂²u/∂t² = c²∇²u
-// Discretised with finite differences. Waves travel, reflect off walls,
-// and interfere — forming standing wave patterns and Chladni-like nodes.
-// Cursor acts as a continuous harmonic source, injecting circular waves.
-var N=COLS*ROWS;
-var u=new Float32Array(N);    // current displacement
-var up=new Float32Array(N);   // previous displacement
-var un=new Float32Array(N);   // next displacement
-
-var C2=0.38*0.38;  // c²Δt²/Δx² — must be < 0.5 for stability
-var DAMP=0.9992;   // very gentle damping per step
-var SPF=2;         // simulation steps per render frame
-
-// Drop a few impulses — the clean opening rings.
-function impulse(sc,sr,sa){
-  for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
-    var r=sr+dr,c=sc+dc;
-    if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
-    var d=Math.sqrt(dr*dr+dc*dc);
-    if(d<4.5)u[r*COLS+c]+=sa*(1-d/4.5);
-  }
+var N=600;
+var ax=new Float32Array(N),ay=new Float32Array(N),aa=new Float32Array(N);
+for(var i=0;i<N;i++){
+  ax[i]=Math.random()*COLS;
+  ay[i]=Math.random()*ROWS;
+  aa[i]=Math.random()*Math.PI*2;
 }
-function dropSeeds(){
-  var k=2+(Math.random()*2|0);
-  for(var i=0;i<k;i++)
-    impulse((0.15+0.7*Math.random())*COLS|0,(0.15+0.7*Math.random())*ROWS|0,
-            1.2+Math.random()*0.8);
+
+var trail=new Float32Array(COLS*ROWS);
+var trailBuf=new Float32Array(COLS*ROWS);
+var SA=Math.PI/4; // sensor angle offset
+var SD=11;        // sensor distance (cells)
+var RA=Math.PI/4; // rotation step
+var DECAY=0.982;  // trails persist longer
+var DEP=0.48;     // gentle deposit — no harsh flares
+var SS=0.75;      // slow agents
+
+function sense(x,y,angle){
+  var sc=Math.round(x+Math.cos(angle)*SD);
+  var sr=Math.round(y+Math.sin(angle)*SD);
+  if(sc<0||sc>=COLS||sr<0||sr>=ROWS) return 0;
+  return trail[sr*COLS+sc];
 }
-impulse(Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8);
-impulse(Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5);
-impulse(Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2);
 
-// Breathe: the membrane runs clean for a while, dissolves to silence,
-// then fresh impulses drop — the opening moment, again and again.
-var CYCLE=720,FADE=100; // ~12s live, ~1.7s dissolve
-var cycleT=0,fading=0;
-
-var frameT=0;
-
-function waveStep(){
-  for(var r=1;r<ROWS-1;r++){
-    var rC=r*COLS;
-    for(var c=1;c<COLS-1;c++){
-      var i=rC+c;
-      var laplacian=u[i-1]+u[i+1]+u[i-COLS]+u[i+COLS]-4*u[i];
-      un[i]=(2*u[i]-up[i]+C2*laplacian)*DAMP;
+function render(){
+  // Diffuse + decay
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var idx=r*COLS+c;
+      var s=trail[idx]*0.5;
+      if(r>0)        s+=trail[(r-1)*COLS+c]*0.125;
+      if(r<ROWS-1)   s+=trail[(r+1)*COLS+c]*0.125;
+      if(c>0)        s+=trail[idx-1]*0.125;
+      if(c<COLS-1)   s+=trail[idx+1]*0.125;
+      trailBuf[idx]=s*DECAY; // weights sum to 1.0, times decay
     }
   }
-  // Absorbing boundaries: damp at edges to kill reflections softly
-  for(var c=0;c<COLS;c++){un[c]=un[COLS+c]*0.5;un[(ROWS-1)*COLS+c]=un[(ROWS-2)*COLS+c]*0.5;}
-  for(var r=0;r<ROWS;r++){un[r*COLS]=un[r*COLS+1]*0.5;un[r*COLS+COLS-1]=un[r*COLS+COLS-2]*0.5;}
-  // Swap buffers
-  var tmp=up;up=u;u=un;un=tmp;
-}
+  var tmp=trail;trail=trailBuf;trailBuf=tmp;
 
-var cardRect=cardEl.getBoundingClientRect();
-function render(now){
-  frameT++;
-  if(frameT%60===0)cardRect=cardEl.getBoundingClientRect();
-
-  // Cursor: continuous oscillating point source (rests while dissolving)
-  if(mOn&&!fading){
-    var mc=mx/CW|0,mr=my/CH|0;
-    if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
-      u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
+  // Cursor deposits food
+  if(mOn){
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    for(var dr=-3;dr<=3;dr++) for(var dc=-3;dc<=3;dc++){
+      var rr=mr+dr,cc=mc+dc;
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) trail[rr*COLS+cc]=Math.min(2,trail[rr*COLS+cc]+0.4);
     }
   }
 
-  if(fading>0){
-    for(var i=0;i<u.length;i++){u[i]*=0.93;up[i]*=0.93;}
-    if(--fading===0){
-      for(var i=0;i<u.length;i++){u[i]=0;up[i]=0;un[i]=0;}
-      dropSeeds();
-      cycleT=0;
+  // Update agents
+  for(var i=0;i<N;i++){
+    var fwd=sense(ax[i],ay[i],aa[i]);
+    var lft=sense(ax[i],ay[i],aa[i]-SA);
+    var rgt=sense(ax[i],ay[i],aa[i]+SA);
+    if(fwd>=lft&&fwd>=rgt){
+      // no turn
+    } else if(lft>rgt){
+      aa[i]-=RA;
+    } else if(rgt>lft){
+      aa[i]+=RA;
+    } else {
+      aa[i]+=(Math.random()-0.5)*2*RA;
     }
-  }else if(++cycleT>CYCLE)fading=FADE;
-
-  for(var s=0;s<SPF;s++)waveStep();
+    ax[i]+=Math.cos(aa[i])*SS;
+    ay[i]+=Math.sin(aa[i])*SS;
+    if(ax[i]<0)ax[i]+=COLS; if(ax[i]>=COLS)ax[i]-=COLS;
+    if(ay[i]<0)ay[i]+=ROWS; if(ay[i]>=ROWS)ay[i]-=ROWS;
+    var c2=ax[i]|0,r2=ay[i]|0;
+    if(c2>=0&&c2<COLS&&r2>=0&&r2<ROWS) trail[r2*COLS+c2]=Math.min(2,trail[r2*COLS+c2]+DEP);
+  }
 
   inten.fill(0);buf32.fill(BG);
-
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var v=u[row*COLS+col];
-      // Only show positive displacement (wave crests glow)
-      var b=Math.max(0,v)*1.1;
+      var b=trail[row*COLS+col];
+      if(b<0.04) continue;
       b=Math.min(1,b);
-      if(b<0.025)continue;
-
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-      if(b<0.025)continue;
-
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      if(ci===0)continue;
-      stamp(ci,(b*255)|0,((col*CW+0.5)|0)-GOX,row*CH-GOY);
+      var dc=(trail[row*COLS+Math.min(col+1,COLS-1)]-trail[row*COLS+Math.max(col-1,0)]);
+      var dr=(trail[Math.min(row+1,ROWS-1)*COLS+col]-trail[Math.max(row-1,0)*COLS+col]);
+      var ang=Math.atan2(dr,dc);
+      var di=((Math.round(ang/(Math.PI/4))%8)+8)%8;
+      stamp(di,(b*255)|0,((col*CW+0.5)|0)-GOX,row*CH-GOY);
     }
   }
   ctx.putImageData(img,0,0);

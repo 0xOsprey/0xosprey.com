@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>8 — lightning storm</title>
+<title>8 — vibrating membrane</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -9,13 +9,13 @@ canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
 .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 6px #060608,0 0 16px #060608;letter-spacing:.04em}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
 .n1{animation:ns1 14s infinite}
 .n2{animation:ns2 14s infinite;opacity:0}
 @keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
 .icons{display:flex;gap:28px;align-items:center;justify-content:center}
 .icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.4}
+.icons a:hover{opacity:.45}
 .icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
@@ -33,180 +33,156 @@ addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='';
 
-var RAMP=' \u2591\u2592\u2593\u2588';
-var field=new Float32Array(COLS*ROWS);
-var frameCount=0;
+var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-// Bolt spawning: creates a branching lightning bolt that walks downward
-function spawnBolt(startCol,startRow,targetCol,intensity,maxBranches){
-  var branches=[{col:startCol,row:startRow,intensity:intensity,dx:0}];
-  var safety=0;
-  while(branches.length>0&&safety<ROWS*3){
-    var next=[];
-    for(var b=0;b<branches.length;b++){
-      var br=branches[b];
-      if(br.row>=ROWS||br.row<0||br.col<0||br.col>=COLS||br.intensity<0.06)continue;
-
-      // Write brightness into field with thickness
-      var c=Math.round(br.col),r=Math.round(br.row);
-      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-        var idx=r*COLS+c;
-        field[idx]=Math.min(1,field[idx]+br.intensity);
-        // Glow neighbors for thickness
-        if(c>0)field[idx-1]=Math.min(1,field[idx-1]+br.intensity*0.45);
-        if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+br.intensity*0.45);
-        if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+br.intensity*0.2);
-        if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+br.intensity*0.2);
-      }
-
-      // Horizontal jitter
-      var jitter=(Math.random()-0.5)*3.5;
-      // Bias toward target column
-      if(targetCol>=0){
-        var pull=(targetCol-br.col)*0.035;
-        jitter+=pull;
-      }
-      br.dx=br.dx*0.65+jitter*0.35;
-
-      var newCol=br.col+br.dx;
-      var newRow=br.row+1;
-
-      // 15% branching chance
-      if(Math.random()<0.15&&maxBranches>0){
-        next.push({col:newCol-1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx-1.2});
-        next.push({col:newCol+1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx+1.2});
-        maxBranches--;
-      }else{
-        next.push({col:newCol,row:newRow,intensity:br.intensity*0.988,dx:br.dx});
-      }
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var CHARS=RAMP;
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='8px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
     }
-    branches=next;
-    safety++;
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
+  }
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF080606;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(6+(255-6)*i/255),lg=Math.round(6+(255-6)*i/255),lb=Math.round(8+(255-8)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
+}
+function stamp(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
   }
 }
 
-// Mini-bolt radiating from a point in an arbitrary direction
-function spawnMiniBolt(startCol,startRow,angle,intensity){
-  var col=startCol,row=startRow;
-  var dx=Math.cos(angle)*1.3;
-  var dy=Math.sin(angle)*1.3;
-  var len=10+Math.random()*20;
-  for(var i=0;i<len;i++){
-    var c=Math.round(col),r=Math.round(row);
-    if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-      var idx=r*COLS+c;
-      field[idx]=Math.min(1,field[idx]+intensity);
-      if(c>0)field[idx-1]=Math.min(1,field[idx-1]+intensity*0.3);
-      if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+intensity*0.3);
-      if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+intensity*0.3);
-      if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+intensity*0.3);
-    }
-    col+=dx+(Math.random()-0.5)*1.8;
-    row+=dy+(Math.random()-0.5)*1.8;
-    intensity*=0.91;
-    // Sub-branching for mini-bolts
-    if(Math.random()<0.08&&intensity>0.15){
-      var brAngle=angle+(Math.random()-0.5)*1.5;
-      spawnMiniBolt(col,row,brAngle,intensity*0.5);
-    }
-    if(intensity<0.04)break;
+// 2D wave equation on a rectangular membrane:
+// ∂²u/∂t² = c²∇²u
+// Discretised with finite differences. Waves travel, reflect off walls,
+// and interfere — forming standing wave patterns and Chladni-like nodes.
+// Cursor acts as a continuous harmonic source, injecting circular waves.
+var N=COLS*ROWS;
+var u=new Float32Array(N);    // current displacement
+var up=new Float32Array(N);   // previous displacement
+var un=new Float32Array(N);   // next displacement
+
+var C2=0.285*0.285; // c²Δt²/Δx² — must be < 0.5 for stability (25% slower)
+var DAMP=0.9986;    // waves gradually die away on their own
+var SPF=2;         // simulation steps per render frame
+
+// Drop a few impulses — the clean opening rings.
+function impulse(sc,sr,sa){
+  for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
+    var r=sr+dr,c=sc+dc;
+    if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
+    var d=Math.sqrt(dr*dr+dc*dc);
+    if(d<4.5)u[r*COLS+c]+=sa*(1-d/4.5);
   }
 }
+function dropSeeds(){
+  var k=3+(Math.random()*2|0);
+  for(var i=0;i<k;i++)
+    impulse((0.15+0.7*Math.random())*COLS|0,(0.15+0.7*Math.random())*ROWS|0,
+            1.2+Math.random()*0.8);
+}
+impulse(Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8);
+impulse(Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5);
+impulse(Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2);
 
-function render(){
-  frameCount++;
+// The waves fade gradually on their own (DAMP); when the membrane
+// has gone quiet, fresh impulses drop — the opening moment recurs.
+var quiet=0;
 
-  // Decay brightness field
-  for(var i=0;i<field.length;i++){
-    field[i]*=0.85;
-  }
+var frameT=0;
 
-  // Very subtle ambient noise for atmosphere
-  if(frameCount%2===0){
-    for(var i=0;i<8;i++){
-      var ri=Math.floor(Math.random()*field.length);
-      field[ri]=Math.min(1,field[ri]+Math.random()*0.05);
+function waveStep(){
+  for(var r=1;r<ROWS-1;r++){
+    var rC=r*COLS;
+    for(var c=1;c<COLS-1;c++){
+      var i=rC+c;
+      var laplacian=u[i-1]+u[i+1]+u[i-COLS]+u[i+COLS]-4*u[i];
+      un[i]=(2*u[i]-up[i]+C2*laplacian)*DAMP;
     }
   }
+  // Absorbing boundaries: damp at edges to kill reflections softly
+  for(var c=0;c<COLS;c++){un[c]=un[COLS+c]*0.5;un[(ROWS-1)*COLS+c]=un[(ROWS-2)*COLS+c]*0.5;}
+  for(var r=0;r<ROWS;r++){un[r*COLS]=un[r*COLS+1]*0.5;un[r*COLS+COLS-1]=un[r*COLS+COLS-2]*0.5;}
+  // Swap buffers
+  var tmp=up;up=u;u=un;un=tmp;
+}
 
-  // Main lightning bolts from top — slow, dramatic, one at a time
-  if(frameCount%210<1){
-    var startCol=Math.random()*COLS;
-    var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,1.0,7);
-  }
+var cardRect=cardEl.getBoundingClientRect();
+function render(now){
+  frameT++;
+  if(frameT%60===0)cardRect=cardEl.getBoundingClientRect();
 
-  // Secondary bolt offset timing
-  if(frameCount%210===105){
-    if(Math.random()<0.45){
-      var startCol=Math.random()*COLS;
-      var targetCol=mOn?(mx/CW):-1;
-      spawnBolt(startCol,0,targetCol,0.7,4);
-    }
-  }
-
-  // Rare extra bolt
-  if(Math.random()<0.003){
-    var startCol=Math.random()*COLS;
-    var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,0.9,5);
-  }
-
-
-// Cursor mini-bolts: radiate outward every ~70 frames
-  if(mOn&&frameCount%70<1){
-    var curCol=mx/CW;
-    var curRow=my/CH;
-    var numBolts=5+Math.floor(Math.random()*5);
-    for(var i=0;i<numBolts;i++){
-      var angle=Math.random()*Math.PI*2;
-      spawnMiniBolt(curCol,curRow,angle,0.9);
-    }
-  }
-
-  // Continuous cursor sparks
+  // Cursor: continuous oscillating point source
   if(mOn){
-    var curCol=mx/CW;
-    var curRow=my/CH;
-    for(var i=0;i<2;i++){
-      var sc=Math.round(curCol+(Math.random()-0.5)*8);
-      var sr=Math.round(curRow+(Math.random()-0.5)*5);
-      if(sc>=0&&sc<COLS&&sr>=0&&sr<ROWS){
-        field[sr*COLS+sc]=Math.min(1,field[sr*COLS+sc]+0.2);
-      }
+    var mc=mx/CW|0,mr=my/CH|0;
+    if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
+      u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
     }
   }
 
-  // Render
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  for(var s=0;s<SPF;s++)waveStep();
 
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW;
-  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3;
-  var cry=(cardRect.height/2/CH)+2;
+  inten.fill(0);buf32.fill(BG);
 
+  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+
+  var ma=0;
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var brightness=field[row*COLS+col];
+      var v=u[row*COLS+col];
+      if(v>ma)ma=v;
+      // Only show positive displacement (wave crests glow)
+      var b=Math.max(0,v)*1.1;
+      b=Math.min(1,b);
+      if(b<0.025)continue;
 
-      // Card fade - soft elliptical
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      brightness*=fade;
+      b*=nd<1?1:1;
+      if(b<0.025)continue;
 
-      if(brightness<0.03)continue;
-      brightness=Math.min(1,brightness);
-
-      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=brightness;
-      ctx.fillText(ch,col*CW,row*CH);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      if(ci===0)continue;
+      stamp(ci,(b*255)|0,((col*CW+0.5)|0)-GOX,row*CH-GOY);
     }
   }
-  ctx.globalAlpha=1;
+  // gone quiet? drop fresh impulses
+  if(ma<0.13){if(++quiet>20){dropSeeds();quiet=0;}}else quiet=0;
+  ctx.putImageData(img,0,0);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
