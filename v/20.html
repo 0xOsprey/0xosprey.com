@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>20 — vibrating membrane</title>
+<title>20 — dla frost</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,99 +21,99 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+// Diffusion-limited aggregation — frost on glass.
+// Walkers do random walks until they touch the growing crystal,
+// then freeze permanently. Cursor clicks seed new nucleation points.
 
-// 2D wave equation on a rectangular membrane:
-// ∂²u/∂t² = c²∇²u
-// Discretised with finite differences. Waves travel, reflect off walls,
-// and interfere — forming standing wave patterns and Chladni-like nodes.
-// Cursor acts as a continuous harmonic source, injecting circular waves.
-var N=COLS*ROWS;
-var u=new Float32Array(N);    // current displacement
-var up=new Float32Array(N);   // previous displacement
-var un=new Float32Array(N);   // next displacement
+var frozen=new Uint8Array(COLS*ROWS);
+var N=280;
+var wx=new Float32Array(N),wy=new Float32Array(N);
+var STEPS=6; // walker steps per frame
 
-var C2=0.38*0.38;  // c²Δt²/Δx² — must be < 0.5 for stability
-var DAMP=0.9992;   // very gentle damping per step
-var SPF=2;         // simulation steps per render frame
+// Seed central cluster + scattered seeds
+var cc=COLS>>1,cr=ROWS>>1;
+for(var dr=-2;dr<=2;dr++) for(var dc=-2;dc<=2;dc++) frozen[(cr+dr)*COLS+(cc+dc)]=1;
+for(var s=0;s<10;s++) frozen[Math.floor(Math.random()*ROWS)*COLS+Math.floor(Math.random()*COLS)]=1;
 
-// Seed with a few impulses to start interesting reflections
-(function seed(){
-  var seeds=[[Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8],
-             [Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5],
-             [Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2]];
-  for(var s=0;s<seeds.length;s++){
-    var sc=seeds[s][0],sr=seeds[s][1],sa=seeds[s][2];
-    for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
-      var r=sr+dr,c=sc+dc;
-      if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
-      var d=Math.sqrt(dr*dr+dc*dc);
-      if(d<4.5)u[r*COLS+c]=sa*(1-d/4.5);
-    }
-  }
-})();
+function spawnWalker(i){
+  wx[i]=Math.random()*COLS;
+  wy[i]=Math.random()*ROWS;
+}
+for(var i=0;i<N;i++) spawnWalker(i);
 
-var frameT=0;
-
-function waveStep(){
-  for(var r=1;r<ROWS-1;r++){
-    var rC=r*COLS;
-    for(var c=1;c<COLS-1;c++){
-      var i=rC+c;
-      var laplacian=u[i-1]+u[i+1]+u[i-COLS]+u[i+COLS]-4*u[i];
-      un[i]=(2*u[i]-up[i]+C2*laplacian)*DAMP;
-    }
-  }
-  // Absorbing boundaries: damp at edges to kill reflections softly
-  for(var c=0;c<COLS;c++){un[c]=un[COLS+c]*0.5;un[(ROWS-1)*COLS+c]=un[(ROWS-2)*COLS+c]*0.5;}
-  for(var r=0;r<ROWS;r++){un[r*COLS]=un[r*COLS+1]*0.5;un[r*COLS+COLS-1]=un[r*COLS+COLS-2]*0.5;}
-  // Swap buffers
-  var tmp=up;up=u;u=un;un=tmp;
+function touching(c,r){
+  return (c>0&&frozen[r*COLS+c-1])||(c<COLS-1&&frozen[r*COLS+c+1])||
+         (r>0&&frozen[(r-1)*COLS+c])||(r<ROWS-1&&frozen[(r+1)*COLS+c]);
 }
 
-function render(now){
-  frameT++;
+function crystalChar(col,row){
+  var L=col>0&&frozen[row*COLS+col-1];
+  var R=col<COLS-1&&frozen[row*COLS+col+1];
+  var U=row>0&&frozen[(row-1)*COLS+col];
+  var D=row<ROWS-1&&frozen[(row+1)*COLS+col];
+  var UL=col>0&&row>0&&frozen[(row-1)*COLS+col-1];
+  var UR=col<COLS-1&&row>0&&frozen[(row-1)*COLS+col+1];
+  var h=L||R,v=U||D;
+  if(h&&v) return '\u253C'; // ┼
+  if(h)    return '\u2500'; // ─
+  if(v)    return '\u2502'; // │
+  if(UL||( col>0&&row<ROWS-1&&frozen[(row+1)*COLS+col-1])) return '\u2572'; // ╲
+  if(UR||( col<COLS-1&&row<ROWS-1&&frozen[(row+1)*COLS+col+1])) return '\u2571'; // ╱
+  return '\u00B7'; // ·
+}
 
-  // Cursor: continuous oscillating point source
+function render(){
+  // Cursor seeds crystal on hover
   if(mOn){
-    var mc=mx/CW|0,mr=my/CH|0;
-    if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
-      u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    if(mc>=0&&mc<COLS&&mr>=0&&mr<ROWS) frozen[mr*COLS+mc]=1;
+  }
+
+  // Auto-fill enclosed gaps: cells with all 4 orthogonal neighbors frozen close immediately.
+  // Cells with 3 frozen neighbors fill quickly too — this seals off remaining blank islands.
+  for(var r=1;r<ROWS-1;r++){
+    for(var c=1;c<COLS-1;c++){
+      if(frozen[r*COLS+c]) continue;
+      var L=frozen[r*COLS+c-1],R=frozen[r*COLS+c+1],U=frozen[(r-1)*COLS+c],D=frozen[(r+1)*COLS+c];
+      var n=(L?1:0)+(R?1:0)+(U?1:0)+(D?1:0);
+      if(n===4) frozen[r*COLS+c]=1;           // fully enclosed — fill immediately
+      else if(n===3&&Math.random()<0.08) frozen[r*COLS+c]=1; // 3-sided — fill quickly
     }
   }
 
-  for(var s=0;s<SPF;s++)waveStep();
+  // Move walkers
+  for(var i=0;i<N;i++){
+    for(var s=0;s<STEPS;s++){
+      var dir=Math.floor(Math.random()*4);
+      wx[i]+=(dir===0?1:dir===1?-1:0);
+      wy[i]+=(dir===2?1:dir===3?-1:0);
+      if(wx[i]<0)wx[i]+=COLS; if(wx[i]>=COLS)wx[i]-=COLS;
+      if(wy[i]<0)wy[i]+=ROWS; if(wy[i]>=ROWS)wy[i]-=ROWS;
+      var c=wx[i]|0,r=wy[i]|0;
+      if(!frozen[r*COLS+c]&&touching(c,r)){
+        frozen[r*COLS+c]=1;
+        spawnWalker(i);
+        break;
+      }
+    }
+  }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+  // Draw walkers as faint dots
+  ctx.globalAlpha=0.07;
+  for(var i=0;i<N;i++) ctx.fillText('\u00B7',(wx[i]|0)*CW,(wy[i]|0)*CH);
 
+  // Draw frozen crystal
+  ctx.globalAlpha=1;
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var v=u[row*COLS+col];
-      // Only show positive displacement (wave crests glow)
-      var b=Math.max(0,v)*1.1;
-      b=Math.min(1,b);
-      if(b<0.025)continue;
-
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-      if(b<0.025)continue;
-
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=b;
-      ctx.fillText(ch,col*CW,row*CH);
+      if(!frozen[row*COLS+col]) continue;
+      ctx.fillText(crystalChar(col,row),col*CW,row*CH);
     }
   }
-  ctx.globalAlpha=1;
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);

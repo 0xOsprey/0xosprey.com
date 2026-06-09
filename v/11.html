@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>11 — deep sea</title>
+<title>11 — wormhole tunnel</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -9,7 +9,7 @@ canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
 .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(127,255,212,.12);letter-spacing:.04em}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
 .n1{animation:ns1 14s infinite}
 .n2{animation:ns2 14s infinite;opacity:0}
 @keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
@@ -34,103 +34,116 @@ var cardEl=document.getElementById('card');
 cardEl.innerHTML='';
 
 var RAMP=' .\u00B7:;=+*#%@\u2588';
+var PI2=Math.PI*2;
+var startTime=0;
 
-// Bioluminescent deep sea: organisms drift upward from the abyss,
-// each pulsing with its own private rhythm. Jellyfish bloom softly.
-// Cursor stirs the water — creatures scatter and swirl.
-var N=280;
-var px=new Float32Array(N),py=new Float32Array(N);
-var pvx=new Float32Array(N),pvy=new Float32Array(N);
-var pphase=new Float32Array(N),pfreq=new Float32Array(N);
-var psize=new Float32Array(N),pbase=new Float32Array(N);
-var psway=new Float32Array(N); // sway phase offset per particle
-
-for(var i=0;i<N;i++){
-  px[i]=Math.random()*W;
-  py[i]=Math.random()*H; // start scattered
-  pvy[i]=-(0.06+Math.random()*0.14); // upward drift speed
-  pphase[i]=Math.random()*Math.PI*2;
-  pfreq[i]=0.004+Math.random()*0.010; // pulse frequency
-  // 10% are jellyfish (large, slow, bright)
-  var jelly=Math.random()<0.10;
-  psize[i]=jelly?4.5+Math.random()*3.5:0.9+Math.random()*1.8;
-  pbase[i]=jelly?0.9:0.55+Math.random()*0.45;
-  psway[i]=Math.random()*Math.PI*2;
-}
-
-var field=new Float32Array(COLS*ROWS);
+// Smooth cursor tracking
+var smx=W/2,smy=H/2;
 
 function render(now){
-  var t=now*0.001;
+  if(!startTime)startTime=now;
+  var t=(now-startTime)*0.001;
 
-  // Decay field — fast enough that only current glow is visible
-  for(var i=0;i<field.length;i++)field[i]*=0.72;
-
-  for(var i=0;i<N;i++){
-    pphase[i]+=pfreq[i];
-
-    // Gentle sinusoidal sway + cursor disturbance
-    var swayX=Math.sin(pphase[i]*0.6+psway[i])*0.10;
-    var vx=swayX;
-    var vy=pvy[i];
-
-    if(mOn){
-      var mdx=px[i]-mx,mdy=py[i]-my;
-      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
-      if(md<130){
-        var mf=(1-md/130)*1.4;
-        vx+=mdx/md*mf;vy+=mdy/md*mf;
-      }
-    }
-
-    px[i]+=vx;py[i]+=vy;
-
-    // Respawn at bottom when exiting top
-    if(py[i]<-psize[i]*CH){
-      py[i]=H+psize[i]*CH;
-      px[i]=Math.random()*W;
-    }
-    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
-
-    // Pulsed brightness — squared sine for sharper flares
-    var s=Math.sin(pphase[i]);
-    var b=pbase[i]*Math.max(0,s)*Math.max(0,s);
-    if(b<0.04)continue;
-
-    // Gaussian splat around particle position
-    var gc=px[i]/CW,gr=py[i]/CH,sr=psize[i];
-    var c0=Math.max(0,Math.floor(gc-sr-1)),c1=Math.min(COLS-1,Math.ceil(gc+sr+1));
-    var r0=Math.max(0,Math.floor(gr-sr-1)),r1=Math.min(ROWS-1,Math.ceil(gr+sr+1));
-    var inv=1/(sr*sr+0.1);
-    for(var r=r0;r<=r1;r++){
-      for(var c=c0;c<=c1;c++){
-        var dc=c-gc,dr=r-gr;
-        var g=Math.exp(-(dc*dc+dr*dr)*inv);
-        field[r*COLS+c]+=b*g;
-      }
-    }
+  // Smooth cursor follow
+  if(mOn){
+    smx+=(mx-smx)*0.04;
+    smy+=(my-smy)*0.04;
+  }else{
+    smx+=(W/2-smx)*0.01;
+    smy+=(H/2-smy)*0.01;
   }
+
+  // Vanishing point shifts strongly with cursor
+  var baseCX=COLS/2,baseCY=ROWS/2;
+  var pull=mOn?0.65:0.0;
+  var cx=baseCX+((smx/CW)-baseCX)*pull;
+  var cy=baseCY+((smy/CH)-baseCY)*pull;
+
+  var maxR=Math.sqrt(COLS*COLS+ROWS*ROWS)*0.5;
+
+  // Subtle rotation over time
+  var rot=t*0.07;
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
   var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
+
+  // Tunnel speed — slow and meditative
+  var speed=t*0.32;
+
+  // Fewer segments = softer, less jagged walls
+  var segments=8;
 
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var b=Math.min(1,field[row*COLS+col]);
-      if(b<0.025)continue;
+      var dx=col-cx;
+      var dy=(row-cy)*1.6; // Aspect correction for perspective
+      var r=Math.sqrt(dx*dx+dy*dy);
+      if(r<0.3)continue; // Dead center is dark
 
+      var angle=Math.atan2(dy,dx)+rot;
+
+      // Depth: inverse of radius creates tunnel perspective
+      var depth=maxR/r;
+
+      // Scrolling rings using depth offset by time
+      var ring=depth*3.5-speed;
+      // Create ring bands using fractional part
+      var ringFrac=ring-Math.floor(ring);
+      // Soft ring pattern: smooth glow bands instead of sharp lightning edges
+      var ringPattern=1.0-Math.abs(ringFrac-0.5)*2.0;
+      // No squaring — keep it soft/rounded
+
+      // Angular segments for the tunnel walls
+      var segAngle=((angle/PI2)*segments);
+      segAngle=segAngle-Math.floor(segAngle);
+      // Soft wall lines
+      var segEdge=Math.abs(segAngle-0.5)*2.0;
+      var segPattern=segEdge*0.5+0.5;
+
+      // Combine
+      var brightness=Math.max(ringPattern*0.7, ringPattern*segPattern);
+
+      // Edge brightness: center is dark void, edges are bright
+      var edgeFactor=Math.min(1,r/maxR*2.2);
+      edgeFactor=edgeFactor*edgeFactor;
+      brightness*=edgeFactor;
+
+      // Depth-based intensity (closer rings = brighter)
+      var depthBright=Math.min(1,depth*0.18);
+      brightness*=depthBright;
+
+      // Add pulsing wave through the tunnel
+      var pulse=Math.sin(depth*1.2-t*0.7)*0.09+0.91;
+      brightness*=pulse;
+
+      // Cursor glow: brighten area near cursor
+      if(mOn){
+        var cdx=(col*CW-mx)/W;
+        var cdy=(row*CH-my)/H;
+        var cd=Math.sqrt(cdx*cdx+cdy*cdy);
+        if(cd<0.18){
+          brightness+=0.35*(1-cd/0.18);
+        }
+      }
+
+      // Card fade - soft elliptical
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-      if(b<0.025)continue;
+      var fade=nd<1?1:1;
+      brightness*=fade;
 
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      if(brightness<0.03)continue;
+      brightness=Math.min(1,brightness);
+
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
       var ch=RAMP[ci];
       if(ch===' ')continue;
-      ctx.globalAlpha=b;
+      ctx.globalAlpha=brightness;
       ctx.fillText(ch,col*CW,row*CH);
     }
   }

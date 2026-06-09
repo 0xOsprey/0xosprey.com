@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>16 — rain on still water</title>
+<title>10 — flow field</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -33,60 +33,72 @@ addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+var RAMP=' .\u00B7:;=+*#';
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
 
-// Raindrop ripples on still water
-// Each drop: center, birth time, amplitude
-var drops=[];
-var MAX_DROPS=14;
-var DROP_INTERVAL=1.4; // seconds between random drops
-var LIFETIME=7.0;      // seconds a drop ripples
-var K=0.85;            // spatial ring frequency
-var OMEGA=2.2;         // ring expansion speed
-var DECAY=0.42;        // amplitude decay over time
-var FALLOFF=0.055;     // spatial envelope (rings fade with distance)
+// Noise flow field: particles follow a slowly-evolving vector field
+// Field angle computed from layered sine waves (smooth, Perlin-like)
+// Particles leave trails that decay, painting organic flowing fabric.
+var N=520;
+var px=new Float32Array(N),py=new Float32Array(N);
+for(var i=0;i<N;i++){px[i]=Math.random()*W;py[i]=Math.random()*H;}
 
-function addDrop(cx,cy,t0,amp){
-  drops.push({cx:cx,cy:cy,t0:t0,amp:amp||1.0});
+var SPEED=1.75,DECAY=0.89;
+var field=new Float32Array(COLS*ROWS);
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+
+// Smooth multi-octave angle field — evolves slowly over time
+function flowAngle(x,y,t){
+  var s=0.030;
+  return(Math.sin(x*s*1.00+y*s*0.40+t*0.160)*0.38
+        +Math.sin(x*s*0.55-y*s*1.05+t*0.110)*0.28
+        +Math.sin(x*s*1.35+y*s*0.85-t*0.130)*0.20
+        +Math.sin(x*s*0.28+y*s*1.55+t*0.095)*0.16
+        +Math.sin((x+y)*s*0.75+t*0.200)*0.18
+        +Math.sin((x-y)*s*0.60-t*0.140)*0.14)*Math.PI*2.8;
 }
-
-// Seed with staggered initial drops
-var startT=performance.now()*0.001;
-for(var i=0;i<6;i++){
-  addDrop(Math.random()*COLS,Math.random()*ROWS,startT-Math.random()*LIFETIME,0.8+Math.random()*0.4);
-}
-
-var lastDrop=startT;
-var lastMouseDrop=-99;
 
 function render(now){
   var t=now*0.001;
 
-  // Cull expired drops
-  for(var i=drops.length-1;i>=0;i--){
-    if(t-drops[i].t0>LIFETIME)drops.splice(i,1);
+  // Decay persistence fields
+  for(var i=0;i<field.length;i++){
+    field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;
   }
 
-  // Random rain: add new drops on interval
-  if(t-lastDrop>DROP_INTERVAL&&drops.length<MAX_DROPS){
-    addDrop(
-      Math.random()*COLS,
-      Math.random()*ROWS,
-      t,
-      0.7+Math.random()*0.5
-    );
-    // Occasionally two drops at once (heavier rain burst)
-    if(Math.random()<0.25&&drops.length<MAX_DROPS){
-      addDrop(Math.random()*COLS,Math.random()*ROWS,t,0.6+Math.random()*0.3);
+  // Move particles along flow field
+  for(var i=0;i<N;i++){
+    var a=flowAngle(px[i],py[i],t);
+    var vx=Math.cos(a)*SPEED;
+    var vy=Math.sin(a)*SPEED;
+
+    // Cursor creates a vortex: particles swirl around it
+    if(mOn){
+      var mdx=px[i]-mx,mdy=py[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<180){
+        var mf=(1-md/180)*(1-md/180)*2.2;
+        // Tangential swirl (perpendicular to radius)
+        vx+=-mdy/md*mf;
+        vy+= mdx/md*mf;
+      }
     }
-    lastDrop=t;
-  }
 
-  // Cursor: finger dragging through water creates continuous ripples
-  if(mOn&&t-lastMouseDrop>0.28){
-    addDrop(mx/CW,my/CH,t,1.4);
-    lastMouseDrop=t;
-    if(drops.length>MAX_DROPS)drops.shift();
+    px[i]+=vx;py[i]+=vy;
+    // Toroidal wrap
+    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
+    if(py[i]<0)py[i]+=H;else if(py[i]>=H)py[i]-=H;
+
+    // Splat onto density+direction fields
+    var col=px[i]/CW|0,row=py[i]/CH|0;
+    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
+    var idx=row*COLS+col,v=0.32;
+    field[idx]+=v;dfx[idx]+=vx*v;dfy[idx]+=vy*v;
+    if(col>0)      {field[idx-1]   +=v*0.18;dfx[idx-1]   +=vx*v*0.18;dfy[idx-1]   +=vy*v*0.18;}
+    if(col<COLS-1) {field[idx+1]   +=v*0.18;dfx[idx+1]   +=vx*v*0.18;dfy[idx+1]   +=vy*v*0.18;}
+    if(row>0)      {field[idx-COLS]+=v*0.18;dfx[idx-COLS]+=vx*v*0.18;dfy[idx-COLS]+=vy*v*0.18;}
+    if(row<ROWS-1) {field[idx+COLS]+=v*0.18;dfx[idx+COLS]+=vx*v*0.18;dfy[idx+COLS]+=vy*v*0.18;}
   }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
@@ -95,45 +107,25 @@ function render(now){
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
   var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
-  var nd2=drops.length*2||1;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var sum=0;
+      var idx=row*COLS+col;
+      var b=Math.min(1,field[idx]);
+      if(b<0.03)continue;
 
-      for(var d=0;d<drops.length;d++){
-        var dp=drops[d];
-        var age=t-dp.t0;
-        if(age<0)continue;
-        var dx=col-dp.cx,dy=row-dp.cy;
-        var r=Math.sqrt(dx*dx+dy*dy);
-        // Ring wave: expands outward from drop center
-        var wave=Math.sin(r*K-OMEGA*age);
-        // Amplitude decays over time
-        var amp=dp.amp*Math.exp(-DECAY*age);
-        // Spatial envelope: rings fade as they expand
-        var env=Math.exp(-r*FALLOFF);
-        // Front envelope: very small r has no ring yet (water hasn't reached)
-        var front=Math.min(1,r*0.15);
-        sum+=wave*amp*env*front;
-      }
-
-      // Map [-max,+max] to [0,1]: only crests visible (like light on water)
-      var b=Math.max(0,sum)*0.7+0.5*(sum+1)*0.3*0.15;
-      b=Math.max(0,b)/1.5;
-      b=Math.pow(Math.min(1,b),0.65);
-
-      // Card fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
       b*=nd<1?1:1;
+      if(b<0.03)continue;
 
-      if(b<0.025)continue;
-      b=Math.min(1,b);
-
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
+      var ch;
+      if(b>0.48){
+        ch=RAMP[Math.min(RAMP.length-1,(b*(RAMP.length-1))|0)];
+      }else{
+        var angle=Math.atan2(dfy[idx],dfx[idx]);
+        var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
+        ch=DIRS[di];
+      }
       ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }

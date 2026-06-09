@@ -1,47 +1,61 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>4 — topographic</title>
+<title>4 — slow starfield</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 #bg{position:fixed;inset:0;z-index:0;user-select:none}
-.r{font:12px/14px "Courier New",monospace;white-space:pre;color:#d4d0c8}
-.a1{opacity:.06}.a2{opacity:.14}.a3{opacity:.22}.a4{opacity:.32}
-.a5{opacity:.44}.a6{opacity:.56}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
+.r{white-space:pre;color:#d4d0c8}
+.a1{opacity:.06}.a2{opacity:.12}.a3{opacity:.20}.a4{opacity:.30}
+.a5{opacity:.42}.a6{opacity:.55}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
 .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 6px #060608,0 0 16px #060608;letter-spacing:.04em}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
 .n1{animation:ns1 14s infinite}
 .n2{animation:ns2 14s infinite;opacity:0}
 @keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
+@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.5}}
 .icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s,color .3s;text-decoration:none}
-.icons a:hover{opacity:.45;color:#d4c8a8}
+.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
+.icons a:hover{opacity:.4}
 .icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
-
+.r{font:11px/13px 'Courier New',monospace;height:13px}
 </style></head><body>
 <div id="bg"></div>
-<div class="content"><div class="card" id="card">
-
-</div></div>
+<div class="content"><div class="card" id="card"></div></div>
 <script>
 
-var CH=14,CW=7.2;
+var CH=13,CW=6.6;
 var COLS=Math.ceil(innerWidth/CW)+2,ROWS=Math.ceil(innerHeight/CH)+2;
 
-var mouseX=-1,mouseY=-1,mouseOn=false;
-document.addEventListener('mousemove',function(e){mouseOn=true;mouseX=e.clientX;mouseY=e.clientY});
+var mouseX=-1,mouseY=-1,mouseOn=false,prevMX=-1,prevMY=-1;
+document.addEventListener('mousemove',function(e){mouseOn=true;prevMX=mouseX;prevMY=mouseY;mouseX=e.clientX;mouseY=e.clientY});
 document.addEventListener('mouseleave',function(){mouseOn=false});
 document.addEventListener('touchmove',function(e){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY},{passive:true});
 document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true;mouseX=e.touches[0].clientX;mouseY=e.touches[0].clientY;}},{passive:true});
 document.addEventListener('touchend',function(){mouseOn=false});
 
 var cardEl=document.getElementById('card');
-var iC0=0,iR0=0,iC1=0,iR1=0;
-function updIsland(){var r=cardEl.getBoundingClientRect();iC0=Math.floor(r.left/CW)-1;iR0=Math.floor(r.top/CH)-1;iC1=Math.ceil(r.right/CW)+1;iR1=Math.ceil(r.bottom/CH)+1;}
-updIsland();
+cardEl.innerHTML='';
+
+// Wrap characters in twinkle spans
+function wrapTwinkle(el){
+  if(!el)return;
+  var text=el.textContent;
+  var html='';
+  for(var i=0;i<text.length;i++){
+    if(text[i]===' '){html+=' ';continue;}
+    var dur=(1.5+Math.random()*3).toFixed(2);
+    var del=(Math.random()*3).toFixed(2);
+    html+='<span class="tw" style="animation:twinkle '+dur+'s ease-in-out '+del+'s infinite">'+text[i]+'</span>';
+  }
+  el.innerHTML=html;
+}
+wrapTwinkle(document.getElementById('promptEl'));
+var linkEls=document.querySelectorAll('#linksEl a');
+for(var li=0;li<linkEls.length;li++) wrapTwinkle(linkEls[li]);
 
 // Elliptical fade parameters
 var ccx=0,ccy=0,crx=1,cry=1;
@@ -54,60 +68,55 @@ function updFade(){
 }
 updFade();
 
-function hash(x,y){var n=x*374761393+y*668265263;n=(n^(n>>13))*1274126177;return(n^(n>>16))/2147483648;}
-function smooth(x,y){var ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);return hash(ix,iy)*(1-fx)*(1-fy)+hash(ix+1,iy)*fx*(1-fy)+hash(ix,iy+1)*(1-fx)*fy+hash(ix+1,iy+1)*fx*fy;}
-function fbm(x,y){return smooth(x,y)*.5+smooth(x*2,y*2)*.3+smooth(x*4,y*4)*.15+smooth(x*8,y*8)*.05;}
-var CONTOUR_CHARS=['·','-','─','=','≈','~','∿','+','#'];
-var elevation=new Float32Array(COLS*ROWS);
+var STAR_N=800;
+var stars=[];
+for(var i=0;i<STAR_N;i++)stars.push({x:(Math.random()-.5)*3,y:(Math.random()-.5)*3,z:Math.random()});
+var grid=new Float32Array(COLS*ROWS);
+var RAMP=' \u00B7.+*\u2022\u2726\u2736\u2738';
+var RAMP2=' \u2219\u2027\u00D7\u2666\u25C6\u2605\u2588';
+var steerX=0,steerY=0;
 
 var bgEl=document.getElementById('bg');
 var rowEls=[];
 for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
 
 function render(now){
-  updIsland();
   updFade();
-  var t=now*0.00008;
-  // Cursor raises terrain
-  var cursorBoost=new Float32Array(COLS*ROWS);
-  if(mouseOn){
-    var mc=mouseX/CW,mr=mouseY/CH;
-    for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
-      var dx=col-mc,dy=row-mr;
-      var d=Math.sqrt(dx*dx+dy*dy);
-      if(d<15) cursorBoost[row*COLS+col]=0.15*(1-d/15);
+  for(var i=0;i<grid.length;i++)grid[i]*=.75;
+  if(mouseOn){steerX+=((mouseX/innerWidth-.5)*.006-steerX)*.03;steerY+=((mouseY/innerHeight-.5)*.006-steerY)*.03;}
+  else{steerX*=.99;steerY*=.99;}
+  var speed=.004;
+  for(var i=0;i<STAR_N;i++){
+    var s=stars[i];
+    s.z-=speed;s.x+=steerX;s.y+=steerY;
+    if(s.z<=.001){s.x=(Math.random()-.5)*3;s.y=(Math.random()-.5)*3;s.z=1;}
+    var sx=s.x/s.z,sy=s.y/s.z;
+    var col=Math.floor((sx+1)*.5*COLS),row=Math.floor((sy+1)*.5*ROWS);
+    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
+    var brightness=Math.min(1,(1-s.z)*1.8);
+    grid[row*COLS+col]=Math.max(grid[row*COLS+col],brightness);
+    for(var t=1;t<4;t++){
+      var pz=s.z+speed*t*4;if(pz>1)continue;
+      var psx=s.x/pz,psy=s.y/pz;
+      var pc=Math.floor((psx+1)*.5*COLS),pr=Math.floor((psy+1)*.5*ROWS);
+      if(pc>=0&&pc<COLS&&pr>=0&&pr<ROWS)grid[pr*COLS+pc]=Math.max(grid[pr*COLS+pc],brightness*(1-t/4)*.5);
     }
   }
-  // Compute elevation
-  for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
-    elevation[row*COLS+col]=fbm(col*0.03+t,row*0.04+t*0.7)+cursorBoost[row*COLS+col];
-  }
-  var NUM_CONTOURS=12;
   for(var row=0;row<ROWS;row++){
     var line='';
     for(var col=0;col<COLS;col++){
-      var h=elevation[row*COLS+col];
-      var contourLevel=h*NUM_CONTOURS;
-      var frac=contourLevel%1;
-      var nearContour=Math.min(frac,1-frac);
-      var hR=col<COLS-1?elevation[row*COLS+col+1]:h;
-      var hD=row<ROWS-1?elevation[(row+1)*COLS+col]:h;
-      var gx=hR-h,gy=hD-h;
-      if(nearContour<0.12){
-        var v=1-nearContour/0.12;
-        // Elliptical fade
-        var ndx=(col-ccx)/crx;
-        var ndy=(row-ccy)/cry;
-        var nd=ndx*ndx+ndy*ndy;
-        var fade=nd<1?1:1;
-        v*=fade;
-        if(v<0.03){line+=' ';continue;}
-        var ci=Math.floor(contourLevel)%CONTOUR_CHARS.length;
-        var ai=Math.max(1,Math.min(10,Math.round(v*8+2)));
-        line+='<span class="a'+ai+'">'+CONTOUR_CHARS[ci]+'</span>';
-      } else {
-        line+=' ';
-      }
+      var v=grid[row*COLS+col];
+      // Elliptical fade
+      var ndx=(col-ccx)/crx;
+      var ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      var fade=nd<1?1:1;
+      v*=fade;
+      if(v<.04){line+=' ';continue;}
+      var ramp=((row*131+col*997)&1)?RAMP:RAMP2;
+      var ci=Math.min(ramp.length-1,(v*ramp.length)|0);
+      var ai=Math.max(1,Math.min(10,Math.round(v*10)));
+      line+='<span class="a'+ai+'">'+ramp[ci]+'</span>';
     }
     rowEls[row].innerHTML=line;
   }

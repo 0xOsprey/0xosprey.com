@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>15 — voronoi drift</title>
+<title>15 — reaction diffusion</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -9,7 +9,7 @@ canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
 .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(127,255,212,.12);letter-spacing:.04em}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(168,232,208,.1);letter-spacing:.04em}
 .n1{animation:ns1 14s infinite}
 .n2{animation:ns2 14s infinite;opacity:0}
 @keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
@@ -33,108 +33,122 @@ addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+var RAMP=' .\u00B7:;\u2591\u2592\u2593\u2588';
+var N=COLS*ROWS;
 
-// Voronoi drift: seeds float on slow sinusoidal paths.
-// Each character glows where it is equidistant from two nearest seeds —
-// the cell boundaries shimmer like bioluminescent membranes.
-var NS=18;
-var sBaseX=new Float32Array(NS),sBaseY=new Float32Array(NS);
-var sAX=new Float32Array(NS),sAY=new Float32Array(NS);
-var sFX=new Float32Array(NS),sFY=new Float32Array(NS);
-var sPX=new Float32Array(NS),sPY=new Float32Array(NS);
+// Two chemicals: U and V, double-buffered
+var U=new Float32Array(N);
+var V=new Float32Array(N);
+var U2=new Float32Array(N);
+var V2=new Float32Array(N);
 
-for(var i=0;i<NS;i++){
-  // Distribute base positions in a loose grid with jitter
-  var gx=i%6,gy=Math.floor(i/6);
-  sBaseX[i]=(gx+0.5)/6+(Math.random()-0.5)*0.12;
-  sBaseY[i]=(gy+0.5)/3+(Math.random()-0.5)*0.15;
-  sAX[i]=0.08+Math.random()*0.10;
-  sAY[i]=0.08+Math.random()*0.10;
-  sFX[i]=0.035+Math.random()*0.055;
-  sFY[i]=0.035+Math.random()*0.055;
-  sPX[i]=Math.random()*Math.PI*2;
-  sPY[i]=Math.random()*Math.PI*2;
-}
+// Parameters — coral/spot pattern
+var Du=0.21,Dv=0.1,f=0.035,k=0.065;
 
-var cx=new Float32Array(NS),cy=new Float32Array(NS);
+// Initialize: U=1 everywhere, V=0, then seed patches
+for(var i=0;i<N;i++){U[i]=1;V[i]=0;}
 
-function render(now){
-  var t=now*0.001;
-
-  // Update seed positions
-  for(var i=0;i<NS;i++){
-    cx[i]=(sBaseX[i]+Math.sin(t*sFX[i]+sPX[i])*sAX[i])*COLS;
-    cy[i]=(sBaseY[i]+Math.sin(t*sFY[i]+sPY[i])*sAY[i])*ROWS;
-  }
-
-  // Mouse seed: cursor acts as an extra seed AND pushes nearby seeds away
-  var hasMouse=mOn;
-  var mcx=mx/CW,mcy=my/CH;
-
-  // Push existing seeds away from cursor (creates a visible void/warp zone)
-  if(hasMouse){
-    for(var i=0;i<NS;i++){
-      var pdx=cx[i]-mcx,pdy=cy[i]-mcy;
-      var pd2=pdx*pdx+pdy*pdy;
-      var pushR=22;
-      if(pd2<pushR*pushR){
-        var pd=Math.sqrt(pd2)||1;
-        var pushStr=(1-pd/pushR)*4.5;
-        cx[i]+=pdx/pd*pushStr;
-        cy[i]+=pdy/pd*pushStr;
+// Seed several random rectangular patches of V=1
+function seedPatch(cx,cy,hw,hh){
+  for(var dy=-hh;dy<=hh;dy++){
+    for(var dx=-hw;dx<=hw;dx++){
+      var c=cx+dx,r=cy+dy;
+      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
+        var idx=r*COLS+c;
+        V[idx]=1;
+        U[idx]=0.5;
       }
     }
   }
+}
+
+var numSeeds=8;
+for(var s=0;s<numSeeds;s++){
+  var sx=Math.floor(Math.random()*COLS*0.6+COLS*0.2);
+  var sy=Math.floor(Math.random()*ROWS*0.6+ROWS*0.2);
+  var sw=Math.floor(Math.random()*4)+2;
+  var sh=Math.floor(Math.random()*3)+1;
+  seedPatch(sx,sy,sw,sh);
+}
+
+var STEPS_PER_FRAME=6;
+
+function simulate(){
+  for(var step=0;step<STEPS_PER_FRAME;step++){
+    for(var r=0;r<ROWS;r++){
+      for(var c=0;c<COLS;c++){
+        var i=r*COLS+c;
+        // 5-point stencil Laplacian with wrapping
+        var up=r>0?(r-1)*COLS+c:(ROWS-1)*COLS+c;
+        var dn=r<ROWS-1?(r+1)*COLS+c:c;
+        var lt=c>0?r*COLS+c-1:r*COLS+COLS-1;
+        var rt=c<COLS-1?r*COLS+c+1:r*COLS;
+
+        var lapU=U[up]+U[dn]+U[lt]+U[rt]-4*U[i];
+        var lapV=V[up]+V[dn]+V[lt]+V[rt]-4*V[i];
+
+        var u=U[i],v=V[i];
+        var uvv=u*v*v;
+        U2[i]=u+Du*lapU-uvv+f*(1-u);
+        V2[i]=v+Dv*lapV+uvv-(f+k)*v;
+
+        // Clamp
+        if(U2[i]<0)U2[i]=0;if(U2[i]>1)U2[i]=1;
+        if(V2[i]<0)V2[i]=0;if(V2[i]>1)V2[i]=1;
+      }
+    }
+    // Swap buffers
+    var tmpU=U;U=U2;U2=tmpU;
+    var tmpV=V;V=V2;V2=tmpV;
+
+    // Cursor seeds V during simulation steps
+    if(mOn){
+      var mcol=Math.round(mx/CW),mrow=Math.round(my/CH);
+      var rad=4;
+      for(var dr=-rad;dr<=rad;dr++){
+        for(var dc=-rad;dc<=rad;dc++){
+          if(dr*dr+dc*dc>rad*rad)continue;
+          var rr=mrow+dr,cc=mcol+dc;
+          if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS){
+            var idx=rr*COLS+cc;
+            V[idx]=1;
+            U[idx]=0.5;
+          }
+        }
+      }
+    }
+  }
+}
+
+function render(){
+  simulate();
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
   var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
+  var ccx=(cardRect.left+cardRect.right)/2/CW;
+  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
+  var crx=(cardRect.width/2/CW)+3;
+  var cry=(cardRect.height/2/CH)+2;
 
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      // Find two nearest seed distances using squared distance (faster)
-      var d1sq=1e18,d2sq=1e18;
-      for(var i=0;i<NS;i++){
-        var dx=col-cx[i],dy=row-cy[i];
-        var dsq=dx*dx+dy*dy;
-        if(dsq<d1sq){d2sq=d1sq;d1sq=dsq;}
-        else if(dsq<d2sq){d2sq=dsq;}
-      }
-      // Mouse seed
-      if(hasMouse){
-        var dx=col-mcx,dy=row-mcy;
-        var dsq=dx*dx+dy*dy;
-        if(dsq<d1sq){d2sq=d1sq;d1sq=dsq;}
-        else if(dsq<d2sq){d2sq=dsq;}
-      }
+      var i=row*COLS+col;
+      var brightness=V[i];
 
-      var d1=Math.sqrt(d1sq),d2=Math.sqrt(d2sq);
-      var gap=d2-d1;
-
-      // Boundary glow: bright where gap is small (near cell walls)
-      var b=1/(1+gap*0.75);
-
-      // Subtle interior warmth: cell centers faintly lit
-      b=b*0.80+Math.max(0,1-d1*0.065)*0.20;
-
-      // Slow breathe
-      b*=0.82+0.18*Math.sin(t*0.28+d1*0.08);
-
-      // Card fade
+      // Card elliptical fade
       var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
       var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
+      var fade=nd<1?1:1;
+      brightness*=fade;
 
-      b=Math.max(0,Math.min(1,b));
-      if(b<0.025)continue;
+      if(brightness<0.03)continue;
+      brightness=Math.min(1,brightness);
 
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
       var ch=RAMP[ci];
       if(ch===' ')continue;
-      ctx.globalAlpha=b;
+      ctx.globalAlpha=brightness;
       ctx.fillText(ch,col*CW,row*CH);
     }
   }

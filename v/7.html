@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>7 — terrain contours</title>
+<title>7 — deep sea</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
@@ -9,13 +9,13 @@ canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
 .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 6px #060608,0 0 16px #060608;letter-spacing:.04em}
+.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(127,255,212,.12);letter-spacing:.04em}
 .n1{animation:ns1 14s infinite}
 .n2{animation:ns2 14s infinite;opacity:0}
 @keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
 .icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s,color .3s;text-decoration:none}
-.icons a:hover{opacity:.45;color:#d4c8a8}
+.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
+.icons a:hover{opacity:.4}
 .icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
@@ -33,119 +33,108 @@ addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches
 var cardEl=document.getElementById('card');
 cardEl.innerHTML='';
 
-// --- Terrain Contours with FBM noise ---
+var RAMP=' .\u00B7:;=+*#%@\u2588';
 
-function hash(x,y){
-  var n=x*374761393+y*668265263;
-  n=((n^(n>>13))*1274126177)|0;
-  return(n^(n>>16))/2147483648;
+// Bioluminescent deep sea: organisms drift upward from the abyss,
+// each pulsing with its own private rhythm. Jellyfish bloom softly.
+// Cursor stirs the water — creatures scatter and swirl.
+var N=280;
+var px=new Float32Array(N),py=new Float32Array(N);
+var pvx=new Float32Array(N),pvy=new Float32Array(N);
+var pphase=new Float32Array(N),pfreq=new Float32Array(N);
+var psize=new Float32Array(N),pbase=new Float32Array(N);
+var psway=new Float32Array(N); // sway phase offset per particle
+
+for(var i=0;i<N;i++){
+  px[i]=Math.random()*W;
+  py[i]=Math.random()*H; // start scattered
+  pvy[i]=-(0.06+Math.random()*0.14); // upward drift speed
+  pphase[i]=Math.random()*Math.PI*2;
+  pfreq[i]=0.004+Math.random()*0.010; // pulse frequency
+  // 10% are jellyfish (large, slow, bright)
+  var jelly=Math.random()<0.10;
+  psize[i]=jelly?4.5+Math.random()*3.5:0.9+Math.random()*1.8;
+  pbase[i]=jelly?0.9:0.55+Math.random()*0.45;
+  psway[i]=Math.random()*Math.PI*2;
 }
 
-function smooth(x,y){
-  var ix=Math.floor(x),iy=Math.floor(y);
-  var fx=x-ix,fy=y-iy;
-  // Smoothstep
-  fx=fx*fx*(3-2*fx);
-  fy=fy*fy*(3-2*fy);
-  var a=hash(ix,iy);
-  var b=hash(ix+1,iy);
-  var c=hash(ix,iy+1);
-  var d=hash(ix+1,iy+1);
-  return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy;
-}
+var field=new Float32Array(COLS*ROWS);
 
-function fbm(x,y){
-  return smooth(x,y)*0.5+smooth(x*2,y*2)*0.3+smooth(x*4,y*4)*0.15+smooth(x*8,y*8)*0.05;
-}
+function render(now){
+  var t=now*0.001;
 
-var contourChars=['·','-','─','=','≈','~','+','#'];
-var numContours=12;
-var scale=0.06;
-var scrollSpeed=0.012;
+  // Decay field — fast enough that only current glow is visible
+  for(var i=0;i<field.length;i++)field[i]*=0.72;
 
-function render(time){
-  var t=time*0.001;
-  var offX=t*scrollSpeed*8;
-  var offY=t*scrollSpeed*3;
+  for(var i=0;i<N;i++){
+    pphase[i]+=pfreq[i];
+
+    // Gentle sinusoidal sway + cursor disturbance
+    var swayX=Math.sin(pphase[i]*0.6+psway[i])*0.10;
+    var vx=swayX;
+    var vy=pvy[i];
+
+    if(mOn){
+      var mdx=px[i]-mx,mdy=py[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
+      if(md<130){
+        var mf=(1-md/130)*1.4;
+        vx+=mdx/md*mf;vy+=mdy/md*mf;
+      }
+    }
+
+    px[i]+=vx;py[i]+=vy;
+
+    // Respawn at bottom when exiting top
+    if(py[i]<-psize[i]*CH){
+      py[i]=H+psize[i]*CH;
+      px[i]=Math.random()*W;
+    }
+    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
+
+    // Pulsed brightness — squared sine for sharper flares
+    var s=Math.sin(pphase[i]);
+    var b=pbase[i]*Math.max(0,s)*Math.max(0,s);
+    if(b<0.04)continue;
+
+    // Gaussian splat around particle position
+    var gc=px[i]/CW,gr=py[i]/CH,sr=psize[i];
+    var c0=Math.max(0,Math.floor(gc-sr-1)),c1=Math.min(COLS-1,Math.ceil(gc+sr+1));
+    var r0=Math.max(0,Math.floor(gr-sr-1)),r1=Math.min(ROWS-1,Math.ceil(gr+sr+1));
+    var inv=1/(sr*sr+0.1);
+    for(var r=r0;r<=r1;r++){
+      for(var c=c0;c<=c1;c++){
+        var dc=c-gc,dr=r-gr;
+        var g=Math.exp(-(dc*dc+dr*dr)*inv);
+        field[r*COLS+c]+=b*g;
+      }
+    }
+  }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
-  // Card fade zone
   var cardRect=cardEl.getBoundingClientRect();
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
   var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
-  // Compute elevation grid
-  // We need current cell and right/below for contour detection
-  var elev=new Float32Array((COLS+1)*(ROWS+1));
-  for(var row=0;row<=ROWS;row++){
-    for(var col=0;col<=COLS;col++){
-      var wx=col*scale+offX;
-      var wy=row*scale+offY;
-      var e=fbm(wx,wy);
-
-      // Mouse raises terrain
-      if(mOn){
-        var pdx=(col*CW-mx);
-        var pdy=(row*CH-my);
-        var pd=Math.sqrt(pdx*pdx+pdy*pdy);
-        var mouseR=150;
-        if(pd<mouseR){
-          var mf=(1-pd/mouseR);
-          mf=mf*mf;
-          e+=mf*0.25;
-        }
-      }
-
-      elev[row*(COLS+1)+col]=e*numContours;
-    }
-  }
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var e=elev[row*(COLS+1)+col];
-      var eRight=elev[row*(COLS+1)+col+1];
-      var eBelow=elev[(row+1)*(COLS+1)+col];
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.025)continue;
 
-      // Detect contour crossings: does e cross an integer boundary with neighbors?
-      var eFloor=Math.floor(e);
-      var crossH=(Math.floor(eRight)!==eFloor);
-      var crossV=(Math.floor(eBelow)!==eFloor);
-      var isCross=crossH||crossV;
+      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
+      var nd=ndx*ndx+ndy*ndy;
+      b*=nd<1?1:1;
+      if(b<0.025)continue;
 
-      if(!isCross)continue;
-
-      // Brightness based on elevation
-      var normE=(e%1);
-      var brightness=0.2+0.8*Math.min(1,Math.abs(normE-0.5)*2);
-
-      // Contour level determines character
-      var level=((eFloor%contourChars.length)+contourChars.length)%contourChars.length;
-      var ch=contourChars[level];
-
-      // Card fade
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry,nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      brightness*=fade;
-
-      if(brightness<0.03)continue;
-
-      // Color varies slightly by elevation level
-      var hue=0.55+eFloor*0.03;
-      var sat=0.05+eFloor*0.02;
-      // Keep it monochrome-ish with slight tint
-      var r=Math.floor(212*(1+sat*Math.sin(hue*6.28))*brightness);
-      var g=Math.floor(208*(1+sat*Math.cos(hue*6.28))*brightness);
-      var b2=Math.floor(200*brightness);
-      r=Math.min(255,Math.max(0,r));
-      g=Math.min(255,Math.max(0,g));
-      b2=Math.min(255,Math.max(0,b2));
-
-      ctx.fillStyle='rgba('+r+','+g+','+b2+','+brightness+')';
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }
   }
-
+  ctx.globalAlpha=1;
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);

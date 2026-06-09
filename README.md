@@ -5,7 +5,7 @@ Joe's personal site. Live at [0xosprey.com](https://0xosprey.com).
 ## Structure
 
 - `index.html` is the shell. Loads a design variant in a fullscreen iframe and exposes a hidden dev nav (bottom center) for cycling variants.
-- `v/` holds 18 numbered design variants. Each is a self-contained animated page.
+- `v/` holds the numbered design variants (the `V` array in `index.html` is the live set). Each is a self-contained animated page.
 - `gen-variants.js`, `gen-refined.js`, `gen-wild.js`, `generate-ascii.js` are the generation scripts used to produce variants.
 - `CNAME` points the GitHub Pages deploy at `0xosprey.com`.
 

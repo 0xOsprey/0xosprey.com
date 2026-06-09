@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>27 — magnetosphere</title>
+<title>27 — cymatics</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,92 +21,71 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-// Magnetosphere — potential flow of solar wind around a planetary obstacle.
-// Classical irrotational flow around a cylinder: streamlines curve perfectly
-// around the planet, compressing on the day-side, stretching a long tail behind.
-// Cursor moves the planet. Direction arrows trace the flow topology.
+// Cymatics — Chladni figures on a vibrating plate.
+// Superimposed standing waves create nodal lines where
+// amplitude is near zero — the bright traces where sand collects.
+// The plate slowly tunes through resonant modes; each produces
+// a new sacred geometry. Cursor excites a local perturbation.
 
-var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
-var N=700;
-var ppx=new Float32Array(N),ppy=new Float32Array(N);
-var R=Math.min(W,H)*0.27; // magnetosphere radius
-var R2=R*R;
-var V0=2.0;    // stream speed
-var MAX_SPD=4.0;
+var RAMP=[' ','\u00B7','.',':','=','+','*','#','@','\u2588'];
 
-for(var i=0;i<N;i++){
-  ppx[i]=Math.random()*W;
-  ppy[i]=Math.random()*H;
+// Current and target mode frequencies (continuous, not integer)
+var mxC=2.0,myC=3.0;
+var mxT=2.0,myT=3.0;
+var MODES=[[2,3],[3,4],[4,3],[3,5],[5,3],[4,5],[5,4],[2,5],[5,2],[4,7],[7,4],[3,7],[6,5],[5,6]];
+var modeIdx=0;
+var MORPH=0.0015; // morphing speed
+var t=0;
+
+// Cursor perturbation field
+var perturb=new Float32Array(COLS*ROWS);
+
+function nextMode(){
+  modeIdx=(modeIdx+1)%MODES.length;
+  mxT=MODES[modeIdx][0];
+  myT=MODES[modeIdx][1];
 }
-
-var cx=W/2,cy=H/2;
-var scx=W/2,scy=H/2;
-
-var field=new Float32Array(COLS*ROWS);
-var dfx=new Float32Array(COLS*ROWS);
-var dfy=new Float32Array(COLS*ROWS);
-var DECAY=0.89;
-
-function flow(x,y){
-  var dx=x-cx,dy=y-cy;
-  var r2=dx*dx+dy*dy;
-  if(r2<R2*0.12) return {vx:0,vy:0};
-  var r4=r2*r2;
-  // Potential flow around cylinder: u=(V0*(1+R2*(dy2-dx2)/r4), -V0*R2*2dx*dy/r4)
-  var vx=V0*(1.0+R2*(dy*dy-dx*dx)/r4);
-  var vy=-V0*R2*2.0*dx*dy/r4;
-  var spd=Math.sqrt(vx*vx+vy*vy);
-  if(spd>MAX_SPD){vx=vx/spd*MAX_SPD;vy=vy/spd*MAX_SPD;}
-  return {vx:vx,vy:vy};
-}
+// Start transition timer
+var modeTimer=0;
+var MODE_FRAMES=600; // frames per mode
 
 function render(now){
-  if(mOn){scx+=(mx-scx)*0.045;scy+=(my-scy)*0.045;}
-  else{scx+=(W/2-scx)*0.01;scy+=(H/2-scy)*0.01;}
-  cx=scx;cy=scy;
+  t=now*0.00055;
+  mxC+=(mxT-mxC)*MORPH;
+  myC+=(myT-myC)*MORPH;
+  modeTimer++;
+  if(modeTimer>MODE_FRAMES){modeTimer=0;nextMode();}
 
-  for(var i=0;i<field.length;i++){field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;}
-
-  for(var i=0;i<N;i++){
-    var fl=flow(ppx[i],ppy[i]);
-    ppx[i]+=fl.vx;
-    ppy[i]+=fl.vy;
-
-    var dx=ppx[i]-cx,dy=ppy[i]-cy;
-    var r2=dx*dx+dy*dy;
-    if(ppx[i]>W+30||ppx[i]<-30||ppy[i]<-30||ppy[i]>H+30||r2<R2*0.1){
-      ppx[i]=-8;
-      ppy[i]=Math.random()*H;
-      continue;
+  // Perturb decay and cursor
+  for(var i=0;i<perturb.length;i++) perturb[i]*=0.94;
+  if(mOn){
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    for(var dr=-3;dr<=3;dr++) for(var dc=-3;dc<=3;dc++){
+      var rr=mr+dr,cc=mc+dc;
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) perturb[rr*COLS+cc]=Math.min(1,perturb[rr*COLS+cc]+0.4);
     }
-
-    var col=(ppx[i]/CW)|0,row=(ppy[i]/CH)|0;
-    if(col<0||col>=COLS||row<0||row>=ROWS) continue;
-    var idx=row*COLS+col,v=0.28;
-    field[idx]+=v;dfx[idx]+=fl.vx*v;dfy[idx]+=fl.vy*v;
-    if(col>0)      {var j=idx-1;   field[j]+=v*.18;dfx[j]+=fl.vx*v*.18;dfy[j]+=fl.vy*v*.18;}
-    if(col<COLS-1) {var j=idx+1;   field[j]+=v*.18;dfx[j]+=fl.vx*v*.18;dfy[j]+=fl.vy*v*.18;}
-    if(row>0)      {var j=idx-COLS;field[j]+=v*.18;dfx[j]+=fl.vx*v*.18;dfy[j]+=fl.vy*v*.18;}
-    if(row<ROWS-1) {var j=idx+COLS;field[j]+=v*.18;dfx[j]+=fl.vx*v*.18;dfy[j]+=fl.vy*v*.18;}
   }
 
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#ffffff';
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
   for(var row=0;row<ROWS;row++){
+    var y=row/ROWS;
     for(var col=0;col<COLS;col++){
-      var b=Math.min(1,field[row*COLS+col]);
-      if(b<0.03) continue;
-      var px2=col*CW-cx,py2=row*CH-cy;
-      if(px2*px2+py2*py2<R2*0.09) continue;
-      var idx=row*COLS+col;
-      var angle=Math.atan2(dfy[idx],dfx[idx]);
-      var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
+      var x=col/COLS;
+      // Primary mode
+      var u=Math.sin(mxC*Math.PI*x)*Math.sin(myC*Math.PI*y+t*0.2)
+           +0.45*Math.sin(myC*Math.PI*x+t*0.15)*Math.sin(mxC*Math.PI*y);
+      // Nodal line brightness: bright where |u| ≈ 0
+      var b=Math.exp(-u*u*9.0);
+      // Blend in cursor perturbation
+      b=Math.max(b,perturb[row*COLS+col]*0.8);
+      if(b<0.04) continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*(RAMP.length-1))|0);
       ctx.globalAlpha=b;
-      ctx.fillText(DIRS[di],col*CW,row*CH);
+      ctx.fillText(RAMP[ci],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;

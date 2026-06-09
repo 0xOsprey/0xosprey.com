@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>21 — reaction diffusion</title>
+<title>21 — firefly sync</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(168,232,208,.1);letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.4}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,126 +21,82 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;\u2591\u2592\u2593\u2588';
-var N=COLS*ROWS;
+// Kuramoto firefly synchronization.
+// Each firefly has a natural blink frequency. Nearby fireflies
+// gradually synchronize their rhythms — emergent coordination
+// spreads across the field. Cursor disrupts local synchrony.
 
-// Two chemicals: U and V, double-buffered
-var U=new Float32Array(N);
-var V=new Float32Array(N);
-var U2=new Float32Array(N);
-var V2=new Float32Array(N);
-
-// Parameters — coral/spot pattern
-var Du=0.21,Dv=0.1,f=0.035,k=0.065;
-
-// Initialize: U=1 everywhere, V=0, then seed patches
-for(var i=0;i<N;i++){U[i]=1;V[i]=0;}
-
-// Seed several random rectangular patches of V=1
-function seedPatch(cx,cy,hw,hh){
-  for(var dy=-hh;dy<=hh;dy++){
-    for(var dx=-hw;dx<=hw;dx++){
-      var c=cx+dx,r=cy+dy;
-      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-        var idx=r*COLS+c;
-        V[idx]=1;
-        U[idx]=0.5;
-      }
-    }
-  }
+var N=160;
+var px=new Float32Array(N),py=new Float32Array(N);
+var pvx=new Float32Array(N),pvy=new Float32Array(N);
+var phase=new Float32Array(N),freq=new Float32Array(N);
+for(var i=0;i<N;i++){
+  px[i]=Math.random()*W; py[i]=Math.random()*H;
+  pvx[i]=(Math.random()-0.5)*0.22; pvy[i]=(Math.random()-0.5)*0.22;
+  phase[i]=Math.random()*Math.PI*2;
+  freq[i]=0.010+Math.random()*0.007; // slow — ~10-15s per cycle
 }
 
-var numSeeds=8;
-for(var s=0;s<numSeeds;s++){
-  var sx=Math.floor(Math.random()*COLS*0.6+COLS*0.2);
-  var sy=Math.floor(Math.random()*ROWS*0.6+ROWS*0.2);
-  var sw=Math.floor(Math.random()*4)+2;
-  var sh=Math.floor(Math.random()*3)+1;
-  seedPatch(sx,sy,sw,sh);
-}
-
-var STEPS_PER_FRAME=6;
-
-function simulate(){
-  for(var step=0;step<STEPS_PER_FRAME;step++){
-    for(var r=0;r<ROWS;r++){
-      for(var c=0;c<COLS;c++){
-        var i=r*COLS+c;
-        // 5-point stencil Laplacian with wrapping
-        var up=r>0?(r-1)*COLS+c:(ROWS-1)*COLS+c;
-        var dn=r<ROWS-1?(r+1)*COLS+c:c;
-        var lt=c>0?r*COLS+c-1:r*COLS+COLS-1;
-        var rt=c<COLS-1?r*COLS+c+1:r*COLS;
-
-        var lapU=U[up]+U[dn]+U[lt]+U[rt]-4*U[i];
-        var lapV=V[up]+V[dn]+V[lt]+V[rt]-4*V[i];
-
-        var u=U[i],v=V[i];
-        var uvv=u*v*v;
-        U2[i]=u+Du*lapU-uvv+f*(1-u);
-        V2[i]=v+Dv*lapV+uvv-(f+k)*v;
-
-        // Clamp
-        if(U2[i]<0)U2[i]=0;if(U2[i]>1)U2[i]=1;
-        if(V2[i]<0)V2[i]=0;if(V2[i]>1)V2[i]=1;
-      }
-    }
-    // Swap buffers
-    var tmpU=U;U=U2;U2=tmpU;
-    var tmpV=V;V=V2;V2=tmpV;
-
-    // Cursor seeds V during simulation steps
-    if(mOn){
-      var mcol=Math.round(mx/CW),mrow=Math.round(my/CH);
-      var rad=4;
-      for(var dr=-rad;dr<=rad;dr++){
-        for(var dc=-rad;dc<=rad;dc++){
-          if(dr*dr+dc*dc>rad*rad)continue;
-          var rr=mrow+dr,cc=mcol+dc;
-          if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS){
-            var idx=rr*COLS+cc;
-            V[idx]=1;
-            U[idx]=0.5;
-          }
-        }
-      }
-    }
-  }
-}
+var K=0.07;       // Kuramoto coupling strength — gentle synchronization
+var SYNC_R2=150*150;
+var field=new Float32Array(COLS*ROWS);
+var DECAY=0.945;  // slow fade — glow lingers
+var CHARS=['\u00B7','\u2218','\u25CB','\u25E6','\u25CF','\u25C9']; // · ∘ ○ ◦ ● ◉
 
 function render(){
-  simulate();
+  for(var i=0;i<field.length;i++) field[i]*=DECAY;
+
+  for(var i=0;i<N;i++){
+    // Kuramoto: gently pull phase toward neighbors
+    var sum=0,cnt=0;
+    for(var j=0;j<N;j++){
+      if(i===j) continue;
+      var dx=px[j]-px[i],dy=py[j]-py[i];
+      if(dx*dx+dy*dy<SYNC_R2){ sum+=Math.sin(phase[j]-phase[i]); cnt++; }
+    }
+    phase[i]+=freq[i]+(cnt>0?K*sum/cnt:0);
+
+    // Cursor gently disrupts phase
+    if(mOn){
+      var dx=px[i]-mx,dy=py[i]-my;
+      if(dx*dx+dy*dy<60*60) phase[i]+=0.15;
+    }
+
+    // Very slow drift
+    px[i]+=pvx[i]; py[i]+=pvy[i];
+    if(px[i]<0){px[i]=0;pvx[i]*=-1;} if(px[i]>W){px[i]=W;pvx[i]*=-1;}
+    if(py[i]<0){py[i]=0;pvy[i]*=-1;} if(py[i]>H){py[i]=H;pvy[i]*=-1;}
+
+    // Always draw faint presence — firefly body
+    var gc=px[i]/CW|0,gr=py[i]/CH|0;
+    if(gc>=0&&gc<COLS&&gr>=0&&gr<ROWS) field[gr*COLS+gc]=Math.max(field[gr*COLS+gc],0.05);
+
+    // Soft swell — sine^2 peaks wide and slow
+    var s=Math.sin(phase[i]);
+    if(s<0) continue;
+    var b=s*s; // softer than sine^4
+    if(b<0.015) continue;
+
+    var sr=b<0.4?1.6:2.4;
+    var c0=Math.max(0,(px[i]/CW-sr-1)|0),c1=Math.min(COLS-1,(px[i]/CW+sr+1)|0);
+    var r0=Math.max(0,(py[i]/CH-sr-1)|0),r1=Math.min(ROWS-1,(py[i]/CH+sr+1)|0);
+    var inv=1/(sr*sr*0.6+0.1);
+    for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
+      var ddx=c-px[i]/CW,ddy=r-py[i]/CH;
+      field[r*COLS+c]=Math.min(1,field[r*COLS+c]+b*Math.exp(-(ddx*ddx+ddy*ddy)*inv));
+    }
+  }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW;
-  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3;
-  var cry=(cardRect.height/2/CH)+2;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var i=row*COLS+col;
-      var brightness=V[i];
-
-      // Card elliptical fade
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      brightness*=fade;
-
-      if(brightness<0.03)continue;
-      brightness=Math.min(1,brightness);
-
-      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=brightness;
-      ctx.fillText(ch,col*CW,row*CH);
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.04) continue;
+      var ci=Math.min(CHARS.length-1,(b*CHARS.length)|0);
+      ctx.globalAlpha=b;
+      ctx.fillText(CHARS[ci],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;
