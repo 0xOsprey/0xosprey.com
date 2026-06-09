@@ -7,10 +7,7 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: #050505; overflow: hidden; cursor: crosshair; }
-  #bg { position: fixed; inset: 0; z-index: 0; user-select: none; }
-  .r { font: 13px/15px 'Courier New', monospace; white-space: pre; height: 15px; color: #d4d0c8; }
-  .a1{opacity:.06} .a2{opacity:.13} .a3{opacity:.21} .a4{opacity:.30}
-  .a5{opacity:.42} .a6{opacity:.55} .a7{opacity:.68} .a8{opacity:.80} .a9{opacity:.92} .a10{opacity:1}
+  canvas { position: fixed; inset: 0; z-index: 0; }
   .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
   .card{pointer-events:auto;text-align:center;animation:flk 12s 3s infinite}
   .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
@@ -27,7 +24,7 @@
 </style>
 </head>
 <body>
-<div id="bg"></div>
+<canvas id="c"></canvas>
 <div class="content"><div class="card" id="card">
 
 </div></div>
@@ -37,6 +34,59 @@
   var CH=15,CW=7.8;
   var COLS=Math.ceil(innerWidth/CW)+2, ROWS=Math.ceil(innerHeight/CH)+2;
   var GLYPHS='.:+*|/\\=-~^!?;:.,0123456789abcdef<>[]{}()#@%&';
+  var cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+  var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+  var ALPHA=[0,.06,.13,.21,.30,.42,.55,.68,.80,.92,1];
+
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var CHARS=GLYPHS;
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='13px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
+    }
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
+  }
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF050505;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(5+(212-5)*i/255),lg=Math.round(5+(208-5)*i/255),lb=Math.round(5+(200-5)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
+}
+function stamp(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
+  }
+}
   var drops=[];
   for(var c=0;c<COLS;c++) drops.push({y:Math.random()*ROWS*2-ROWS, speed:0.3+Math.random()*0.7, len:4+Math.random()*12|0});
 
@@ -62,9 +112,6 @@
   updFade();
 
   var grid=new Float32Array(COLS*ROWS);
-  var bgEl=document.getElementById('bg');
-  var rowEls=[];
-  for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
 
   // name handled by CSS animation
 
@@ -104,8 +151,9 @@
       }
     }
     // Render
+    inten.fill(0);buf32.fill(BG);
     for(var row=0;row<ROWS;row++){
-      var line='';
+      var rpy=row*CH-GOY;
       for(var col=0;col<COLS;col++){
         var v=grid[row*COLS+col];
         // Elliptical fade
@@ -114,14 +162,13 @@
         var nd=ndx*ndx+ndy*ndy;
         var fade=nd<1?1:1;
         v*=fade;
-        if(v<0.03){line+=' ';continue;}
+        if(v<0.03)continue;
         var ai=Math.max(1,Math.min(10,Math.round(v*10)));
         var hash=((row*131+col*997+(fc>>2))*2654435761)>>>0;
-        var ch=GLYPHS[hash%GLYPHS.length];
-        line+='<span class="a'+ai+'">'+ch+'</span>';
+        stamp(hash%GLYPHS.length,(ALPHA[ai]*255)|0,((col*CW+0.5)|0)-GOX,rpy);
       }
-      rowEls[row].innerHTML=line;
     }
+    ctx.putImageData(img,0,0);
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);

@@ -35,6 +35,56 @@ cardEl.innerHTML='';
 
 var RAMP=' .\u00B7:;=+*#%@\u2588';
 
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var CHARS=RAMP;
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='8px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
+    }
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
+  }
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF080606;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(6+(255-6)*i/255),lg=Math.round(6+(255-6)*i/255),lb=Math.round(8+(255-8)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
+}
+function stamp(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
+  }
+}
+
 // 2D wave equation on a rectangular membrane:
 // ∂²u/∂t² = c²∇²u
 // Discretised with finite differences. Waves travel, reflect off walls,
@@ -49,21 +99,29 @@ var C2=0.38*0.38;  // c²Δt²/Δx² — must be < 0.5 for stability
 var DAMP=0.9992;   // very gentle damping per step
 var SPF=2;         // simulation steps per render frame
 
-// Seed with a few impulses to start interesting reflections
-(function seed(){
-  var seeds=[[Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8],
-             [Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5],
-             [Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2]];
-  for(var s=0;s<seeds.length;s++){
-    var sc=seeds[s][0],sr=seeds[s][1],sa=seeds[s][2];
-    for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
-      var r=sr+dr,c=sc+dc;
-      if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
-      var d=Math.sqrt(dr*dr+dc*dc);
-      if(d<4.5)u[r*COLS+c]=sa*(1-d/4.5);
-    }
+// Drop a few impulses — the clean opening rings.
+function impulse(sc,sr,sa){
+  for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
+    var r=sr+dr,c=sc+dc;
+    if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
+    var d=Math.sqrt(dr*dr+dc*dc);
+    if(d<4.5)u[r*COLS+c]+=sa*(1-d/4.5);
   }
-})();
+}
+function dropSeeds(){
+  var k=2+(Math.random()*2|0);
+  for(var i=0;i<k;i++)
+    impulse((0.15+0.7*Math.random())*COLS|0,(0.15+0.7*Math.random())*ROWS|0,
+            1.2+Math.random()*0.8);
+}
+impulse(Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8);
+impulse(Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5);
+impulse(Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2);
+
+// Breathe: the membrane runs clean for a while, dissolves to silence,
+// then fresh impulses drop — the opening moment, again and again.
+var CYCLE=720,FADE=100; // ~12s live, ~1.7s dissolve
+var cycleT=0,fading=0;
 
 var frameT=0;
 
@@ -83,22 +141,32 @@ function waveStep(){
   var tmp=up;up=u;u=un;un=tmp;
 }
 
+var cardRect=cardEl.getBoundingClientRect();
 function render(now){
   frameT++;
+  if(frameT%60===0)cardRect=cardEl.getBoundingClientRect();
 
-  // Cursor: continuous oscillating point source
-  if(mOn){
+  // Cursor: continuous oscillating point source (rests while dissolving)
+  if(mOn&&!fading){
     var mc=mx/CW|0,mr=my/CH|0;
     if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
       u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
     }
   }
 
+  if(fading>0){
+    for(var i=0;i<u.length;i++){u[i]*=0.93;up[i]*=0.93;}
+    if(--fading===0){
+      for(var i=0;i<u.length;i++){u[i]=0;up[i]=0;un[i]=0;}
+      dropSeeds();
+      cycleT=0;
+    }
+  }else if(++cycleT>CYCLE)fading=FADE;
+
   for(var s=0;s<SPF;s++)waveStep();
 
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  inten.fill(0);buf32.fill(BG);
 
-  var cardRect=cardEl.getBoundingClientRect();
   var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
   var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
 
@@ -116,13 +184,11 @@ function render(now){
       if(b<0.025)continue;
 
       var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=b;
-      ctx.fillText(ch,col*CW,row*CH);
+      if(ci===0)continue;
+      stamp(ci,(b*255)|0,((col*CW+0.5)|0)-GOX,row*CH-GOY);
     }
   }
-  ctx.globalAlpha=1;
+  ctx.putImageData(img,0,0);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);

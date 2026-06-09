@@ -26,14 +26,66 @@ document.getElementById('card').innerHTML='';
 
 // Solar surface — convective granulation. Hot plasma rises in
 // bright cells, cools, and sinks along the dark lanes between
-// them. Two sunspots drift across the disk. Magnetic loops erupt,
-// glow, and rain back down. The cursor is a magnetic probe —
-// the convection churns and swirls beneath it.
+// them. Two sunspots drift across the disk. The cursor is a
+// magnetic probe — the convection churns and swirls beneath it.
 
 var RAMP=' .·:;=+*#%@';
 var SX=0.55,SY=1.06; // cell → granule space (squares up the aspect)
 
-function gran(x,y,t){
+// Software glyph renderer: prerendered alpha masks stamped into a
+// pixel buffer, one putImageData per frame instead of per-cell
+// fillText. Visuals identical; far less canvas call overhead.
+var CHARS=RAMP;
+var GW=Math.ceil(CW)+2,GH=CH+4,GOX=1,GOY=2;
+var masks=[],mbox=[];
+(function(){
+  var n=CHARS.length,mc=document.createElement('canvas');
+  mc.width=GW*n;mc.height=GH;
+  var x=mc.getContext('2d');
+  x.font='8px Courier New';x.textBaseline='top';x.fillStyle='#fff';
+  for(var i=0;i<n;i++)x.fillText(CHARS[i],i*GW+GOX,GOY);
+  var d=x.getImageData(0,0,GW*n,GH).data;
+  for(var i=0;i<n;i++){
+    var m=new Uint8Array(GW*GH);
+    var bx0=GW,bx1=-1,by0=GH,by1=-1;
+    for(var yy=0;yy<GH;yy++)for(var xx=0;xx<GW;xx++){
+      var a=d[((yy*GW*n)+(i*GW+xx))*4+3];
+      m[yy*GW+xx]=a;
+      if(a){if(xx<bx0)bx0=xx;if(xx>bx1)bx1=xx;if(yy<by0)by0=yy;if(yy>by1)by1=yy;}
+    }
+    masks.push(m);mbox.push([bx0,by0,bx1+1,by1+1]);
+  }
+})();
+var img=ctx.createImageData(W,H);
+var buf32=new Uint32Array(img.data.buffer);
+var inten=new Uint8Array(W*H);
+var BG=0xFF080606;
+var LUT=new Uint32Array(256);
+for(var i=0;i<256;i++){
+  var lr=Math.round(6+(255-6)*i/255),lg=Math.round(6+(255-6)*i/255),lb=Math.round(8+(255-8)*i/255);
+  LUT[i]=(255<<24)|(lb<<16)|(lg<<8)|lr;
+}
+function stamp(mi,a255,sx,sy){
+  var m=masks[mi],bx=mbox[mi];
+  var xs=bx[0],ys=bx[1],xe=bx[2],ye=bx[3];
+  if(sx+xs<0)xs=-sx;if(sy+ys<0)ys=-sy;
+  if(sx+xe>W)xe=W-sx;if(sy+ye>H)ye=H-sy;
+  for(var yy=ys;yy<ye;yy++){
+    var ro=(sy+yy)*W+sx,mo2=yy*GW;
+    for(var xx=xs;xx<xe;xx++){
+      var ma=m[mo2+xx];
+      if(!ma)continue;
+      var v=(ma*a255)>>8;
+      var p=ro+xx;
+      if(v>inten[p]){inten[p]=v;buf32[p]=LUT[v];}
+    }
+  }
+}
+
+// Exact granulation field — used directly only near the cursor,
+// where samples are rotated; elsewhere the separable tables below
+// compute the identical value with no per-cell trig.
+function granSlow(x,y,t){
   var v=Math.sin(x*0.30+t*0.21+Math.sin(y*0.23-t*0.17)*2.3)
        *Math.sin(y*0.27-t*0.13+Math.sin(x*0.21+t*0.11)*2.3);
   v+=0.55*Math.sin(x*0.61-t*0.33+2.1+Math.sin(y*0.43+t*0.19)*1.4)
@@ -42,41 +94,28 @@ function gran(x,y,t){
   return v/1.85;
 }
 
+// Per-frame row/col tables: gran = sin(A+B)*sin(C+D)+... expands via
+// sin(A+B)=sinA·cosB+cosA·sinB into products of per-axis terms.
+var sinC1=new Float32Array(COLS),cosC1=new Float32Array(COLS),
+    sinC2=new Float32Array(COLS),cosC2=new Float32Array(COLS),
+    sinX3=new Float32Array(COLS),cosX3=new Float32Array(COLS),
+    X4v=new Float32Array(COLS),colPX=new Int32Array(COLS);
+var sinR1=new Float32Array(ROWS),cosR1=new Float32Array(ROWS),
+    sinY2=new Float32Array(ROWS),cosY2=new Float32Array(ROWS),
+    sinR3=new Float32Array(ROWS),cosR3=new Float32Array(ROWS),
+    Y3v=new Float32Array(ROWS),Y4v=new Float32Array(ROWS);
+var POWN=2048,powLUT=new Float32Array(POWN);
+for(var i=0;i<POWN;i++)powLUT[i]=Math.pow(i/(POWN-1),1.55)*0.95;
+for(var col=0;col<COLS;col++)colPX[col]=((col*CW+0.5)|0)-GOX;
+
 // Sunspots: dark umbrae wandering the disk
 var spots=[
   {x:COLS*0.30,y:ROWS*0.38,r:6.5,vx:0.009,vy:0.004},
   {x:COLS*0.72,y:ROWS*0.66,r:4.5,vx:-0.007,vy:-0.003}
 ];
 
-// Magnetic loops: bright arcs anchored at two footpoints
-var Lo=new Float32Array(COLS*ROWS);
-var loops=[];
-function spawnLoop(cx,cy){
-  if(loops.length>=3)return;
-  var span=8+Math.random()*12;
-  loops.push({c0:cx-span,c1:cx+span,row:cy,hMax:6+Math.random()*11,
-              age:0,life:380+(Math.random()*240|0),dir:Math.random()<0.5?1:-1});
-}
-var nextLoop=200;
-
-var pmx=-1,pmy=-1,frame=0;
-
 function render(now){
   var t=now*0.001*0.55;
-  frame++;
-
-  // autonomous eruptions
-  if(--nextLoop<=0){
-    spawnLoop(Math.random()*COLS,ROWS*(0.15+Math.random()*0.7));
-    nextLoop=350+Math.random()*450|0;
-  }
-  // a fast hand drags the field lines — eruption at the probe
-  if(mOn&&pmx>=0){
-    var mdx=mx-pmx,mdy=my-pmy;
-    if(mdx*mdx+mdy*mdy>900&&Math.random()<0.10)
-      spawnLoop(mx/CW,my/CH);
-  }
-  pmx=mOn?mx:-1;pmy=mOn?my:-1;
 
   for(var i=0;i<spots.length;i++){
     var s=spots[i];
@@ -85,33 +124,32 @@ function render(now){
     if(s.y<-s.r)s.y=ROWS+s.r;if(s.y>ROWS+s.r)s.y=-s.r;
   }
 
-  // loop plasma flows along the arc, rises, then dies away
-  for(var i=0;i<Lo.length;i++)Lo[i]*=0.74;
-  for(var li=loops.length-1;li>=0;li--){
-    var L=loops[li];
-    L.age++;
-    if(L.age>=L.life){loops.splice(li,1);continue;}
-    var rise=Math.min(1,L.age/110);
-    var fade=Math.min(1,(L.life-L.age)/80);
-    var h=L.hMax*rise;
-    var n=Math.ceil(Math.abs(L.c1-L.c0))*2;
-    for(var k=0;k<=n;k++){
-      var sfrac=k/n;
-      var cc=Math.round(L.c0+(L.c1-L.c0)*sfrac);
-      var rr=Math.round(L.row-Math.sin(sfrac*Math.PI)*h);
-      if(cc<0||cc>=COLS||rr<0||rr>=ROWS)continue;
-      var flow=0.5+0.5*Math.sin(sfrac*16*L.dir-L.age*0.22);
-      Lo[rr*COLS+cc]=Math.min(1.4,Lo[rr*COLS+cc]+(0.18+0.5*flow)*fade);
-    }
+  for(var col=0;col<COLS;col++){
+    var x=col*SX;
+    var a1=x*0.30+t*0.21;sinC1[col]=Math.sin(a1);cosC1[col]=Math.cos(a1);
+    var c2=Math.sin(x*0.21+t*0.11)*2.3;sinC2[col]=Math.sin(c2);cosC2[col]=Math.cos(c2);
+    var x3=x*0.61-t*0.33+2.1;sinX3[col]=Math.sin(x3);cosX3[col]=Math.cos(x3);
+    X4v[col]=Math.sin(x*1.13+t*0.51);
+  }
+  for(var row=0;row<ROWS;row++){
+    var y=row*SY;
+    var r1=Math.sin(y*0.23-t*0.17)*2.3;sinR1[row]=Math.sin(r1);cosR1[row]=Math.cos(r1);
+    var y2=y*0.27-t*0.13;sinY2[row]=Math.sin(y2);cosY2[row]=Math.cos(y2);
+    var r3=Math.sin(y*0.43+t*0.19)*1.4;sinR3[row]=Math.sin(r3);cosR3[row]=Math.cos(r3);
+    Y3v[row]=Math.sin(y*0.57+t*0.29+1.3);
+    Y4v[row]=Math.sin(y*1.07-t*0.47);
   }
 
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+  inten.fill(0);buf32.fill(BG);
 
   var cgx=mx/CW,cgy=my/CH;
   for(var row=0;row<ROWS;row++){
+    var sR1=sinR1[row],cR1=cosR1[row],sY2=sinY2[row],cY2=cosY2[row];
+    var sR3=sinR3[row],cR3=cosR3[row],y3=Y3v[row],y4=Y4v[row];
+    var rpy=row*CH-GOY;
     for(var col=0;col<COLS;col++){
-      var x=col*SX,y=row*SY;
-      var boost=0;
+      var v,boost=0;
+      var swirled=false;
       if(mOn){
         var dc=col-cgx,dr=(row-cgy)*2.08;
         var d2=dc*dc+dr*dr;
@@ -120,33 +158,37 @@ function render(now){
           // swirl the sample point around the probe
           var ang=g*1.5*Math.sin(t*1.7);
           var ca=Math.cos(ang),sa=Math.sin(ang);
+          var x=col*SX,y=row*SY;
           var ox=x-cgx*SX,oy=y-cgy*SY;
-          x=cgx*SX+ox*ca-oy*sa;
-          y=cgy*SY+ox*sa+oy*ca;
+          v=granSlow(cgx*SX+ox*ca-oy*sa,cgy*SY+ox*sa+oy*ca,t);
           boost=g*0.30;
+          swirled=true;
         }
       }
-      var v=gran(x,y,t);
-      var b=Math.pow((v+1)*0.5,1.55)*0.95+boost;
+      if(!swirled){
+        v=((sinC1[col]*cR1+cosC1[col]*sR1)*(sY2*cosC2[col]+cY2*sinC2[col])
+          +0.55*(sinX3[col]*cR3+cosX3[col]*sR3)*y3
+          +0.30*X4v[col]*y4)/1.85;
+      }
+      var pn=(v+1)*0.5;
+      if(pn<0)pn=0;if(pn>1)pn=1;
+      var b=powLUT[(pn*(POWN-1))|0]+boost;
       // sunspots eat the light
       for(var si=0;si<2;si++){
-        var s=spots[si];
-        var sdc=col-s.x,sdr=(row-s.y)*2.08;
+        var sp=spots[si];
+        var sdc=col-sp.x,sdr=(row-sp.y)*2.08;
         var sd2=sdc*sdc+sdr*sdr;
-        if(sd2<s.r*s.r*9)
-          b*=1-0.88*Math.exp(-sd2/(s.r*s.r*1.8));
+        if(sd2<sp.r*sp.r*9)
+          b*=1-0.88*Math.exp(-sd2/(sp.r*sp.r*1.8));
       }
-      b+=Lo[row*COLS+col];
       if(b<0.04)continue;
-      b=Math.min(1,b);
+      if(b>1)b=1;
       var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=b;
-      ctx.fillText(ch,col*CW,row*CH);
+      if(ci===0)continue;
+      stamp(ci,(b*255)|0,colPX[col],rpy);
     }
   }
-  ctx.globalAlpha=1;
+  ctx.putImageData(img,0,0);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
