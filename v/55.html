@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>55 — bioluminescent wake</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
+canvas{position:fixed;inset:0;z-index:0}
+.content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
+.card{pointer-events:auto;text-align:center}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="content"><div class="card" id="card"></div></div>
+<script>
+(function(){
+var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
+var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
+ctx.font='8px Courier New';ctx.textBaseline='top';
+var mx=-1,my=-1,mOn=false;
+addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
+addEventListener('mouseleave',function(){mOn=false});
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
+
+// Bioluminescent wake — night water thick with dinoflagellates.
+// Anything that moves through it leaves a blooming glow trail:
+// fish cruising below, plankton twinkling, and your cursor —
+// drag a hand through the water and watch it ignite.
+
+var E=new Float32Array(COLS*ROWS),E2=new Float32Array(COLS*ROWS);
+var RAMP=' .·:;=+*#%@';
+
+function splat(x,y,r,a){
+  var gc=x/CW,gr=y/CH;
+  var c0=Math.max(0,Math.floor(gc-r-1)),c1=Math.min(COLS-1,Math.ceil(gc+r+1));
+  var r0=Math.max(0,Math.floor(gr-r-1)),r1=Math.min(ROWS-1,Math.ceil(gr+r+1));
+  var inv=1/(r*r+0.1);
+  for(var rr=r0;rr<=r1;rr++)for(var cc=c0;cc<=c1;cc++){
+    var dc=cc-gc,dr=rr-gr;
+    E[rr*COLS+cc]+=a*Math.exp(-(dc*dc+dr*dr)*inv);
+  }
+}
+
+// Unseen swimmers that ignite trails
+var FN=4;
+var fx=[],fy=[],fh=[],fs=[],fp=[],fdart=[];
+for(var i=0;i<FN;i++){
+  fx.push(Math.random()*W);fy.push(Math.random()*H);
+  fh.push(Math.random()*Math.PI*2);
+  fs.push(0.7+Math.random()*0.5);
+  fp.push(Math.random()*Math.PI*2);
+  fdart.push(0);
+}
+
+var pmx=-1,pmy=-1;
+
+function render(now){
+  var t=now*0.001;
+
+  // Cursor wake — glow scales with hand speed
+  if(mOn){
+    if(pmx>=0){
+      var dx=mx-pmx,dy=my-pmy;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.5){
+        var steps=Math.min(24,Math.ceil(d/4));
+        var amt=Math.min(1.1,0.10+d*0.035);
+        for(var s=0;s<=steps;s++)
+          splat(pmx+dx*s/steps,pmy+dy*s/steps,1.7,amt/Math.max(1,steps*0.45));
+      }
+    }
+    pmx=mx;pmy=my;
+  }else{pmx=-1;pmy=-1;}
+
+  // Fish cruise; sometimes dart; shy away from the hand
+  for(var i=0;i<FN;i++){
+    fp[i]+=0.013;
+    fh[i]+=Math.sin(fp[i]*1.7+i*2.1)*0.022;
+    var sp=fs[i];
+    if(fdart[i]>0){sp=fs[i]*4.2;fdart[i]--;fh[i]+=Math.sin(fdart[i]*0.5)*0.05;}
+    else if(Math.random()<0.0015)fdart[i]=28+(Math.random()*30|0);
+    if(mOn){
+      var mdx=fx[i]-mx,mdy=fy[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy);
+      if(md<90&&md>0.1){
+        var away=Math.atan2(mdy,mdx);
+        var diff=away-fh[i];
+        while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+        fh[i]+=diff*0.06;
+        if(md<50&&fdart[i]<=0)fdart[i]=22;
+      }
+    }
+    fx[i]+=Math.cos(fh[i])*sp;fy[i]+=Math.sin(fh[i])*sp*0.6;
+    if(fx[i]<-20)fx[i]=W+20;else if(fx[i]>W+20)fx[i]=-20;
+    if(fy[i]<-20)fy[i]=H+20;else if(fy[i]>H+20)fy[i]=-20;
+    splat(fx[i],fy[i],fdart[i]>0?2.1:1.4,fdart[i]>0?0.55:0.30);
+  }
+
+  // Plankton twinkle
+  if(Math.random()<0.5)
+    splat(Math.random()*W,Math.random()*H,1.0,0.18);
+
+  // Diffuse + decay: the bloom spreads, then fades
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var id=r*COLS+c;
+      var n=0,cnt=0;
+      if(c>0){n+=E[id-1];cnt++;}
+      if(c<COLS-1){n+=E[id+1];cnt++;}
+      if(r>0){n+=E[id-COLS];cnt++;}
+      if(r<ROWS-1){n+=E[id+COLS];cnt++;}
+      E2[id]=(E[id]*0.80+(n/cnt)*0.20)*0.970;
+    }
+  }
+  var tmp=E;E=E2;E2=tmp;
+
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+
+  for(var row=0;row<ROWS;row++){
+    for(var col=0;col<COLS;col++){
+      // faint ambient swell so the water itself is barely there
+      var sw=0.030+0.022*Math.sin(col*0.085+t*0.5+Math.sin(row*0.11-t*0.3))
+                  *Math.sin(row*0.105-t*0.35);
+      var b=E[row*COLS+col]+sw;
+      if(b<0.035)continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+      var ch=RAMP[ci];
+      if(ch===' ')continue;
+      ctx.globalAlpha=b;
+      ctx.fillText(ch,col*CW,row*CH);
+    }
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script></body></html>
