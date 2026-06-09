@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>14 — vibrating membrane</title>
+<title>14 — bioluminescent wake</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -29,92 +20,112 @@ ctx.font='8px Courier New';ctx.textBaseline='top';
 var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
-addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+// Bioluminescent wake — night water thick with dinoflagellates.
+// Anything that moves through it leaves a blooming glow trail:
+// fish cruising below, plankton twinkling, and your cursor —
+// drag a hand through the water and watch it ignite.
 
-// 2D wave equation on a rectangular membrane:
-// ∂²u/∂t² = c²∇²u
-// Discretised with finite differences. Waves travel, reflect off walls,
-// and interfere — forming standing wave patterns and Chladni-like nodes.
-// Cursor acts as a continuous harmonic source, injecting circular waves.
-var N=COLS*ROWS;
-var u=new Float32Array(N);    // current displacement
-var up=new Float32Array(N);   // previous displacement
-var un=new Float32Array(N);   // next displacement
+var E=new Float32Array(COLS*ROWS),E2=new Float32Array(COLS*ROWS);
+var RAMP=' .·:;=+*#%@';
 
-var C2=0.38*0.38;  // c²Δt²/Δx² — must be < 0.5 for stability
-var DAMP=0.9992;   // very gentle damping per step
-var SPF=2;         // simulation steps per render frame
-
-// Seed with a few impulses to start interesting reflections
-(function seed(){
-  var seeds=[[Math.floor(COLS*0.2),Math.floor(ROWS*0.3),1.8],
-             [Math.floor(COLS*0.7),Math.floor(ROWS*0.6),1.5],
-             [Math.floor(COLS*0.5),Math.floor(ROWS*0.2),1.2]];
-  for(var s=0;s<seeds.length;s++){
-    var sc=seeds[s][0],sr=seeds[s][1],sa=seeds[s][2];
-    for(var dr=-4;dr<=4;dr++)for(var dc=-4;dc<=4;dc++){
-      var r=sr+dr,c=sc+dc;
-      if(r<1||r>=ROWS-1||c<1||c>=COLS-1)continue;
-      var d=Math.sqrt(dr*dr+dc*dc);
-      if(d<4.5)u[r*COLS+c]=sa*(1-d/4.5);
-    }
+function splat(x,y,r,a){
+  var gc=x/CW,gr=y/CH;
+  var c0=Math.max(0,Math.floor(gc-r-1)),c1=Math.min(COLS-1,Math.ceil(gc+r+1));
+  var r0=Math.max(0,Math.floor(gr-r-1)),r1=Math.min(ROWS-1,Math.ceil(gr+r+1));
+  var inv=1/(r*r+0.1);
+  for(var rr=r0;rr<=r1;rr++)for(var cc=c0;cc<=c1;cc++){
+    var dc=cc-gc,dr=rr-gr;
+    E[rr*COLS+cc]+=a*Math.exp(-(dc*dc+dr*dr)*inv);
   }
-})();
-
-var frameT=0;
-
-function waveStep(){
-  for(var r=1;r<ROWS-1;r++){
-    var rC=r*COLS;
-    for(var c=1;c<COLS-1;c++){
-      var i=rC+c;
-      var laplacian=u[i-1]+u[i+1]+u[i-COLS]+u[i+COLS]-4*u[i];
-      un[i]=(2*u[i]-up[i]+C2*laplacian)*DAMP;
-    }
-  }
-  // Absorbing boundaries: damp at edges to kill reflections softly
-  for(var c=0;c<COLS;c++){un[c]=un[COLS+c]*0.5;un[(ROWS-1)*COLS+c]=un[(ROWS-2)*COLS+c]*0.5;}
-  for(var r=0;r<ROWS;r++){un[r*COLS]=un[r*COLS+1]*0.5;un[r*COLS+COLS-1]=un[r*COLS+COLS-2]*0.5;}
-  // Swap buffers
-  var tmp=up;up=u;u=un;un=tmp;
 }
 
-function render(now){
-  frameT++;
+// Unseen swimmers that ignite trails
+var FN=4;
+var fx=[],fy=[],fh=[],fs=[],fp=[],fdart=[];
+for(var i=0;i<FN;i++){
+  fx.push(Math.random()*W);fy.push(Math.random()*H);
+  fh.push(Math.random()*Math.PI*2);
+  fs.push(0.7+Math.random()*0.5);
+  fp.push(Math.random()*Math.PI*2);
+  fdart.push(0);
+}
 
-  // Cursor: continuous oscillating point source
+var pmx=-1,pmy=-1;
+
+function render(now){
+  var t=now*0.001;
+
+  // Cursor wake — glow scales with hand speed
   if(mOn){
-    var mc=mx/CW|0,mr=my/CH|0;
-    if(mc>0&&mc<COLS-1&&mr>0&&mr<ROWS-1){
-      u[mr*COLS+mc]+=Math.sin(frameT*0.38)*0.9;
+    if(pmx>=0){
+      var dx=mx-pmx,dy=my-pmy;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.5){
+        var steps=Math.min(24,Math.ceil(d/4));
+        var amt=Math.min(1.1,0.10+d*0.035);
+        for(var s=0;s<=steps;s++)
+          splat(pmx+dx*s/steps,pmy+dy*s/steps,1.7,amt/Math.max(1,steps*0.45));
+      }
     }
+    pmx=mx;pmy=my;
+  }else{pmx=-1;pmy=-1;}
+
+  // Fish cruise; sometimes dart; shy away from the hand
+  for(var i=0;i<FN;i++){
+    fp[i]+=0.013;
+    fh[i]+=Math.sin(fp[i]*1.7+i*2.1)*0.022;
+    var sp=fs[i];
+    if(fdart[i]>0){sp=fs[i]*4.2;fdart[i]--;fh[i]+=Math.sin(fdart[i]*0.5)*0.05;}
+    else if(Math.random()<0.0015)fdart[i]=28+(Math.random()*30|0);
+    if(mOn){
+      var mdx=fx[i]-mx,mdy=fy[i]-my;
+      var md=Math.sqrt(mdx*mdx+mdy*mdy);
+      if(md<90&&md>0.1){
+        var away=Math.atan2(mdy,mdx);
+        var diff=away-fh[i];
+        while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+        fh[i]+=diff*0.06;
+        if(md<50&&fdart[i]<=0)fdart[i]=22;
+      }
+    }
+    fx[i]+=Math.cos(fh[i])*sp;fy[i]+=Math.sin(fh[i])*sp*0.6;
+    if(fx[i]<-20)fx[i]=W+20;else if(fx[i]>W+20)fx[i]=-20;
+    if(fy[i]<-20)fy[i]=H+20;else if(fy[i]>H+20)fy[i]=-20;
+    splat(fx[i],fy[i],fdart[i]>0?2.1:1.4,fdart[i]>0?0.55:0.30);
   }
 
-  for(var s=0;s<SPF;s++)waveStep();
+  // Plankton twinkle
+  if(Math.random()<0.5)
+    splat(Math.random()*W,Math.random()*H,1.0,0.18);
+
+  // Diffuse + decay: the bloom spreads, then fades
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var id=r*COLS+c;
+      var n=0,cnt=0;
+      if(c>0){n+=E[id-1];cnt++;}
+      if(c<COLS-1){n+=E[id+1];cnt++;}
+      if(r>0){n+=E[id-COLS];cnt++;}
+      if(r<ROWS-1){n+=E[id+COLS];cnt++;}
+      E2[id]=(E[id]*0.80+(n/cnt)*0.20)*0.970;
+    }
+  }
+  var tmp=E;E=E2;E2=tmp;
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var v=u[row*COLS+col];
-      // Only show positive displacement (wave crests glow)
-      var b=Math.max(0,v)*1.1;
+      // faint ambient swell so the water itself is barely there
+      var sw=0.030+0.022*Math.sin(col*0.085+t*0.5+Math.sin(row*0.11-t*0.3))
+                  *Math.sin(row*0.105-t*0.35);
+      var b=E[row*COLS+col]+sw;
+      if(b<0.035)continue;
       b=Math.min(1,b);
-      if(b<0.025)continue;
-
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-      if(b<0.025)continue;
-
       var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
       var ch=RAMP[ci];
       if(ch===' ')continue;

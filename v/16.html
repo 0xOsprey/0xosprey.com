@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>16 — rain on still water</title>
+<title>16 — dune sea</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -29,114 +20,112 @@ ctx.font='8px Courier New';ctx.textBaseline='top';
 var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
-addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
+// Dune sea — wind over sand, seen from above. Ripples crawl
+// downwind, gathered into long dune bands. The wind slowly veers.
+// The cursor is a gust: ripples surge under it and loose grains
+// leap downwind in little saltation hops. Every so often a gust
+// front sweeps the whole field on its own.
 
-// Raindrop ripples on still water
-// Each drop: center, birth time, amplitude
-var drops=[];
-var MAX_DROPS=14;
-var DROP_INTERVAL=1.4; // seconds between random drops
-var LIFETIME=7.0;      // seconds a drop ripples
-var K=0.85;            // spatial ring frequency
-var OMEGA=2.2;         // ring expansion speed
-var DECAY=0.42;        // amplitude decay over time
-var FALLOFF=0.055;     // spatial envelope (rings fade with distance)
-
-function addDrop(cx,cy,t0,amp){
-  drops.push({cx:cx,cy:cy,t0:t0,amp:amp||1.0});
-}
-
-// Seed with staggered initial drops
-var startT=performance.now()*0.001;
-for(var i=0;i<6;i++){
-  addDrop(Math.random()*COLS,Math.random()*ROWS,startT-Math.random()*LIFETIME,0.8+Math.random()*0.4);
-}
-
-var lastDrop=startT;
-var lastMouseDrop=-99;
+var RAMP=' .·:;=+*#';
+var G=new Float32Array(COLS*ROWS); // accumulated local gust surge
+var grains=[];                     // saltating sand
+var gustX=-1e9,gustT=400;
 
 function render(now){
   var t=now*0.001;
+  var th=0.50+0.35*Math.sin(t*0.045)+0.12*Math.sin(t*0.013+2); // wind veers
+  var cth=Math.cos(th),sth=Math.sin(th);
 
-  // Cull expired drops
-  for(var i=drops.length-1;i>=0;i--){
-    if(t-drops[i].t0>LIFETIME)drops.splice(i,1);
-  }
+  for(var i=0;i<G.length;i++)G[i]*=0.972;
 
-  // Random rain: add new drops on interval
-  if(t-lastDrop>DROP_INTERVAL&&drops.length<MAX_DROPS){
-    addDrop(
-      Math.random()*COLS,
-      Math.random()*ROWS,
-      t,
-      0.7+Math.random()*0.5
-    );
-    // Occasionally two drops at once (heavier rain burst)
-    if(Math.random()<0.25&&drops.length<MAX_DROPS){
-      addDrop(Math.random()*COLS,Math.random()*ROWS,t,0.6+Math.random()*0.3);
+  // cursor gust
+  if(mOn){
+    var cgx=mx/CW,cgy=my/CH;
+    var R=12;
+    var c0=Math.max(0,cgx-R|0),c1=Math.min(COLS-1,cgx+R|0);
+    var r0=Math.max(0,cgy-R/2|0),r1=Math.min(ROWS-1,cgy+R/2|0);
+    for(var r=r0;r<=r1;r++)for(var c=c0;c<=c1;c++){
+      var dc=c-cgx,dr=(r-cgy)*2.08;
+      G[r*COLS+c]+=0.085*Math.exp(-(dc*dc+dr*dr)/90);
     }
-    lastDrop=t;
+    if(grains.length<240&&Math.random()<0.8)
+      grains.push({x:mx+(Math.random()-0.5)*40,y:my+(Math.random()-0.5)*20,
+                   vx:(2.5+Math.random()*2)*cth,vy:-(1.2+Math.random()*1.6),life:90});
   }
 
-  // Cursor: finger dragging through water creates continuous ripples
-  if(mOn&&t-lastMouseDrop>0.28){
-    addDrop(mx/CW,my/CH,t,1.4);
-    lastMouseDrop=t;
-    if(drops.length>MAX_DROPS)drops.shift();
+  // autonomous gust front sweeping downwind
+  if(--gustT<=0){gustX=-80;gustT=700+(Math.random()*500|0);}
+  if(gustX>-1e8){
+    gustX+=5.5;
+    if(gustX>W+260)gustX=-1e9;
+    else{
+      for(var r=0;r<ROWS;r++){
+        var ybase=r*CH*sth;
+        for(var c=0;c<COLS;c++){
+          var u=c*CW*cth+ybase;
+          var d=(u-gustX)/55;
+          if(d>-2&&d<2)G[r*COLS+c]+=0.05*Math.exp(-d*d);
+        }
+      }
+      if(grains.length<240&&Math.random()<0.7){
+        var gy=Math.random()*H;
+        grains.push({x:gustX-gy*sth/cth*0+Math.random()*30,y:gy,
+                     vx:(2.5+Math.random()*2)*cth,vy:-(1+Math.random()*1.8),life:80});
+      }
+    }
+  }
+
+  // saltation: hop, land, hop again
+  for(var gi=grains.length-1;gi>=0;gi--){
+    var g=grains[gi];
+    g.x+=g.vx;g.y+=g.vy+g.vx*sth*0.4;
+    g.vy+=0.16;
+    g.life--;
+    if(g.vy>1.6){ // landed
+      if(Math.random()<0.55&&g.life>0)g.vy=-(0.8+Math.random()*1.4);
+      else{grains.splice(gi,1);continue;}
+    }
+    if(g.life<=0||g.x<-30||g.x>W+30||g.y<-30||g.y>H+30)grains.splice(gi,1);
   }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
-
-  var nd2=drops.length*2||1;
-
   for(var row=0;row<ROWS;row++){
+    var yp=row*CH;
     for(var col=0;col<COLS;col++){
-      var sum=0;
-
-      for(var d=0;d<drops.length;d++){
-        var dp=drops[d];
-        var age=t-dp.t0;
-        if(age<0)continue;
-        var dx=col-dp.cx,dy=row-dp.cy;
-        var r=Math.sqrt(dx*dx+dy*dy);
-        // Ring wave: expands outward from drop center
-        var wave=Math.sin(r*K-OMEGA*age);
-        // Amplitude decays over time
-        var amp=dp.amp*Math.exp(-DECAY*age);
-        // Spatial envelope: rings fade as they expand
-        var env=Math.exp(-r*FALLOFF);
-        // Front envelope: very small r has no ring yet (water hasn't reached)
-        var front=Math.min(1,r*0.15);
-        sum+=wave*amp*env*front;
-      }
-
-      // Map [-max,+max] to [0,1]: only crests visible (like light on water)
-      var b=Math.max(0,sum)*0.7+0.5*(sum+1)*0.3*0.15;
-      b=Math.max(0,b)/1.5;
-      b=Math.pow(Math.min(1,b),0.65);
-
-      // Card fade
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-
-      if(b<0.025)continue;
+      var xp=col*CW;
+      var u=xp*cth+yp*sth;
+      var warp=Math.sin(xp*0.011+t*0.07)*Math.cos(yp*0.013-t*0.05)*34;
+      var ph=(u+warp)*0.042-t*0.9-G[row*COLS+col];
+      var ripple=Math.sin(ph);
+      // dune bands modulate ripple strength
+      var env=0.5+0.5*Math.sin((u+warp*2.5)*0.0065-t*0.018
+              +Math.sin(yp*0.004+t*0.01)*1.5);
+      var amp=0.16+0.84*env*env;
+      var b=amp*Math.pow(0.5+0.5*ripple,2.4);
+      if(b<0.04)continue;
       b=Math.min(1,b);
-
-      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
+      var ch;
+      if(ripple>0.86)ch='~';
+      else{
+        var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
+        ch=RAMP[ci];
+        if(ch===' ')continue;
+      }
       ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }
+  }
+
+  // airborne grains on top
+  ctx.globalAlpha=0.85;
+  for(var gi=0;gi<grains.length;gi++){
+    var g=grains[gi];
+    ctx.fillText(g.vy<0?"'":'.',g.x,g.y);
   }
   ctx.globalAlpha=1;
   requestAnimationFrame(render);

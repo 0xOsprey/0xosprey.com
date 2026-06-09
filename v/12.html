@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>12 — lightning storm</title>
+<title>12 — gravity ballet</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 6px #060608,0 0 16px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.4}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,180 +21,125 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-var RAMP=' \u2591\u2592\u2593\u2588';
-var field=new Float32Array(COLS*ROWS);
-var frameCount=0;
+// N-body gravity ballet — six masses in mutual gravitational dance.
+// Tracers swarm among them, catching gravity slings and orbital resonances.
+// Trail decay is very slow; the screen becomes a record of all trajectories.
+// Cursor is an invisible seventh mass.
 
-// Bolt spawning: creates a branching lightning bolt that walks downward
-function spawnBolt(startCol,startRow,targetCol,intensity,maxBranches){
-  var branches=[{col:startCol,row:startRow,intensity:intensity,dx:0}];
-  var safety=0;
-  while(branches.length>0&&safety<ROWS*3){
-    var next=[];
-    for(var b=0;b<branches.length;b++){
-      var br=branches[b];
-      if(br.row>=ROWS||br.row<0||br.col<0||br.col>=COLS||br.intensity<0.06)continue;
+var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
+var G=1800; // gravitational constant
+var SOFT=22; // softening length (px)
 
-      // Write brightness into field with thickness
-      var c=Math.round(br.col),r=Math.round(br.row);
-      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-        var idx=r*COLS+c;
-        field[idx]=Math.min(1,field[idx]+br.intensity);
-        // Glow neighbors for thickness
-        if(c>0)field[idx-1]=Math.min(1,field[idx-1]+br.intensity*0.45);
-        if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+br.intensity*0.45);
-        if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+br.intensity*0.2);
-        if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+br.intensity*0.2);
-      }
+var NB=6;
+var bx=new Float32Array(NB),by=new Float32Array(NB);
+var bvx=new Float32Array(NB),bvy=new Float32Array(NB);
+var RING=Math.min(W,H)*0.27;
 
-      // Horizontal jitter
-      var jitter=(Math.random()-0.5)*3.5;
-      // Bias toward target column
-      if(targetCol>=0){
-        var pull=(targetCol-br.col)*0.035;
-        jitter+=pull;
-      }
-      br.dx=br.dx*0.65+jitter*0.35;
-
-      var newCol=br.col+br.dx;
-      var newRow=br.row+1;
-
-      // 15% branching chance
-      if(Math.random()<0.15&&maxBranches>0){
-        next.push({col:newCol-1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx-1.2});
-        next.push({col:newCol+1.8,row:newRow,intensity:br.intensity*0.72,dx:br.dx+1.2});
-        maxBranches--;
-      }else{
-        next.push({col:newCol,row:newRow,intensity:br.intensity*0.988,dx:br.dx});
-      }
-    }
-    branches=next;
-    safety++;
-  }
+// Six bodies in a ring, initially near circular orbit velocity
+for(var i=0;i<NB;i++){
+  var ang=i/NB*Math.PI*2;
+  bx[i]=W/2+Math.cos(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  by[i]=H/2+Math.sin(ang)*RING+(Math.random()-0.5)*RING*0.18;
+  var v=Math.sqrt(G*(NB-1)/RING)*0.88;
+  bvx[i]=(-Math.sin(ang)*v)+(Math.random()-0.5)*v*0.2;
+  bvy[i]=(Math.cos(ang)*v)+(Math.random()-0.5)*v*0.2;
 }
 
-// Mini-bolt radiating from a point in an arbitrary direction
-function spawnMiniBolt(startCol,startRow,angle,intensity){
-  var col=startCol,row=startRow;
-  var dx=Math.cos(angle)*1.3;
-  var dy=Math.sin(angle)*1.3;
-  var len=10+Math.random()*20;
-  for(var i=0;i<len;i++){
-    var c=Math.round(col),r=Math.round(row);
-    if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-      var idx=r*COLS+c;
-      field[idx]=Math.min(1,field[idx]+intensity);
-      if(c>0)field[idx-1]=Math.min(1,field[idx-1]+intensity*0.3);
-      if(c<COLS-1)field[idx+1]=Math.min(1,field[idx+1]+intensity*0.3);
-      if(r>0)field[(r-1)*COLS+c]=Math.min(1,field[(r-1)*COLS+c]+intensity*0.3);
-      if(r<ROWS-1)field[(r+1)*COLS+c]=Math.min(1,field[(r+1)*COLS+c]+intensity*0.3);
-    }
-    col+=dx+(Math.random()-0.5)*1.8;
-    row+=dy+(Math.random()-0.5)*1.8;
-    intensity*=0.91;
-    // Sub-branching for mini-bolts
-    if(Math.random()<0.08&&intensity>0.15){
-      var brAngle=angle+(Math.random()-0.5)*1.5;
-      spawnMiniBolt(col,row,brAngle,intensity*0.5);
-    }
-    if(intensity<0.04)break;
+var NT=90; // tracers
+var tx=new Float32Array(NT),ty=new Float32Array(NT);
+var tvx=new Float32Array(NT),tvy=new Float32Array(NT);
+for(var i=0;i<NT;i++){
+  var bi=i%NB;
+  var ang2=Math.random()*Math.PI*2;
+  var r2=(0.05+Math.random()*0.3)*RING;
+  tx[i]=bx[bi]+Math.cos(ang2)*r2;
+  ty[i]=by[bi]+Math.sin(ang2)*r2;
+  tvx[i]=bvx[bi]+(Math.random()-0.5)*2;
+  tvy[i]=bvy[bi]+(Math.random()-0.5)*2;
+}
+
+var field=new Float32Array(COLS*ROWS);
+var dfx=new Float32Array(COLS*ROWS);
+var dfy=new Float32Array(COLS*ROWS);
+var DECAY=0.991; // extremely slow fade — trails accumulate
+
+function accel(px,py,excludeBody){
+  var ax=0,ay=0;
+  for(var j=0;j<NB;j++){
+    if(j===excludeBody) continue;
+    var dx=bx[j]-px,dy=by[j]-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  if(mOn){
+    var dx=mx-px,dy=my-py;
+    var d2=dx*dx+dy*dy+SOFT*SOFT;
+    var d=Math.sqrt(d2);
+    var f=G*0.6/(d*d2);
+    ax+=dx*f; ay+=dy*f;
+  }
+  return {ax:ax,ay:ay};
+}
+
+function stamp(x,y,vx,vy,strength,radius){
+  var gc=x/CW,gr=y/CH;
+  var c0=Math.max(0,(gc-radius-1)|0),c1=Math.min(COLS-1,(gc+radius+1)|0);
+  var r0=Math.max(0,(gr-radius-1)|0),r1=Math.min(ROWS-1,(gr+radius+1)|0);
+  var inv=1/(radius*radius+0.1);
+  for(var r=r0;r<=r1;r++) for(var c=c0;c<=c1;c++){
+    var dc=c-gc,dr=r-gr;
+    var g=strength*Math.exp(-(dc*dc+dr*dr)*inv);
+    var idx=r*COLS+c;
+    field[idx]=Math.min(1.5,field[idx]+g);
+    dfx[idx]+=vx*g; dfy[idx]+=vy*g;
   }
 }
 
 function render(){
-  frameCount++;
+  for(var i=0;i<field.length;i++){field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;}
 
-  // Decay brightness field
-  for(var i=0;i<field.length;i++){
-    field[i]*=0.85;
+  // Leapfrog integration for bodies
+  for(var i=0;i<NB;i++){
+    var a=accel(bx[i],by[i],i);
+    bvx[i]+=a.ax; bvy[i]+=a.ay;
+    bvx[i]*=0.9995; bvy[i]*=0.9995;
+    bx[i]+=bvx[i]; by[i]+=bvy[i];
+    // Soft wall
+    var push=0.4;
+    if(bx[i]<W*0.04)bvx[i]+=push; if(bx[i]>W*0.96)bvx[i]-=push;
+    if(by[i]<H*0.04)bvy[i]+=push; if(by[i]>H*0.96)bvy[i]-=push;
+    stamp(bx[i],by[i],bvx[i],bvy[i],0.65,3.2);
   }
 
-  // Very subtle ambient noise for atmosphere
-  if(frameCount%2===0){
-    for(var i=0;i<8;i++){
-      var ri=Math.floor(Math.random()*field.length);
-      field[ri]=Math.min(1,field[ri]+Math.random()*0.05);
+  // Update tracers
+  for(var i=0;i<NT;i++){
+    var a=accel(tx[i],ty[i],-1);
+    tvx[i]+=a.ax; tvy[i]+=a.ay;
+    tvx[i]*=0.999; tvy[i]*=0.999;
+    tx[i]+=tvx[i]; ty[i]+=tvy[i];
+    if(tx[i]<-60||tx[i]>W+60||ty[i]<-60||ty[i]>H+60){
+      var bi=Math.floor(Math.random()*NB);
+      var ang3=Math.random()*Math.PI*2,r3=(0.1+Math.random()*0.25)*RING;
+      tx[i]=bx[bi]+Math.cos(ang3)*r3; ty[i]=by[bi]+Math.sin(ang3)*r3;
+      tvx[i]=bvx[bi]+(Math.random()-0.5)*1.5; tvy[i]=bvy[bi]+(Math.random()-0.5)*1.5;
     }
+    stamp(tx[i],ty[i],tvx[i],tvy[i],0.2,1.8);
   }
 
-  // Main lightning bolts from top — slow, dramatic, one at a time
-  if(frameCount%210<1){
-    var startCol=Math.random()*COLS;
-    var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,1.0,7);
-  }
-
-  // Secondary bolt offset timing
-  if(frameCount%210===105){
-    if(Math.random()<0.45){
-      var startCol=Math.random()*COLS;
-      var targetCol=mOn?(mx/CW):-1;
-      spawnBolt(startCol,0,targetCol,0.7,4);
-    }
-  }
-
-  // Rare extra bolt
-  if(Math.random()<0.003){
-    var startCol=Math.random()*COLS;
-    var targetCol=mOn?(mx/CW):-1;
-    spawnBolt(startCol,0,targetCol,0.9,5);
-  }
-
-
-// Cursor mini-bolts: radiate outward every ~70 frames
-  if(mOn&&frameCount%70<1){
-    var curCol=mx/CW;
-    var curRow=my/CH;
-    var numBolts=5+Math.floor(Math.random()*5);
-    for(var i=0;i<numBolts;i++){
-      var angle=Math.random()*Math.PI*2;
-      spawnMiniBolt(curCol,curRow,angle,0.9);
-    }
-  }
-
-  // Continuous cursor sparks
-  if(mOn){
-    var curCol=mx/CW;
-    var curRow=my/CH;
-    for(var i=0;i<2;i++){
-      var sc=Math.round(curCol+(Math.random()-0.5)*8);
-      var sr=Math.round(curRow+(Math.random()-0.5)*5);
-      if(sc>=0&&sc<COLS&&sr>=0&&sr<ROWS){
-        field[sr*COLS+sc]=Math.min(1,field[sr*COLS+sc]+0.2);
-      }
-    }
-  }
-
-  // Render
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW;
-  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3;
-  var cry=(cardRect.height/2/CH)+2;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var brightness=field[row*COLS+col];
-
-      // Card fade - soft elliptical
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      brightness*=fade;
-
-      if(brightness<0.03)continue;
-      brightness=Math.min(1,brightness);
-
-      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
-      var ch=RAMP[ci];
-      if(ch===' ')continue;
-      ctx.globalAlpha=brightness;
-      ctx.fillText(ch,col*CW,row*CH);
+      var b=Math.min(1,field[row*COLS+col]);
+      if(b<0.03) continue;
+      var idx=row*COLS+col;
+      var ang=Math.atan2(dfy[idx],dfx[idx]);
+      var di=((Math.round(ang/(Math.PI/4))%8)+8)%8;
+      ctx.globalAlpha=b;
+      ctx.fillText(DIRS[di],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;

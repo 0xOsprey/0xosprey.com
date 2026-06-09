@@ -7,10 +7,7 @@
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
-  #bg{position:fixed;inset:0;z-index:0;user-select:none}
-  .r{font:9px/11px 'Courier New',monospace;white-space:pre;height:11px;color:#d4d0c8}
-  .a1{opacity:.06}.a2{opacity:.14}.a3{opacity:.22}.a4{opacity:.32}
-  .a5{opacity:.44}.a6{opacity:.56}.a7{opacity:.68}.a8{opacity:.80}.a9{opacity:.90}.a10{opacity:1}
+  canvas{position:fixed;inset:0;z-index:0}
   .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
   .card{pointer-events:auto;text-align:center}
   .name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
@@ -26,7 +23,7 @@
 </style>
 </head>
 <body>
-<div id="bg"></div>
+<canvas id="c"></canvas>
 <div class="content"><div class="card" id="card">
 
 </div></div>
@@ -70,9 +67,10 @@ document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true
   for(var i=0;i<PN;i++){var a=(i/PN)*Math.PI*2,r=Math.min(FCOLS,FROWS)*0.3;particles.push({x:FCOLS/2+Math.cos(a)*r,y:FROWS/2+Math.sin(a)*r,vx:0,vy:0});}
   function repel(px,py){var M=8,S=0.5;if(px<iFX0-M||px>iFX1+M||py<iFY0-M||py>iFY1+M)return null;var nx=Math.max(iFX0,Math.min(iFX1,px)),ny=Math.max(iFY0,Math.min(iFY1,py));var dx=px-nx,dy=py-ny,dist=Math.sqrt(dx*dx+dy*dy)||0.1;if(px>=iFX0&&px<=iFX1&&py>=iFY0&&py<=iFY1){var tl=px-iFX0,tr=iFX1-px,tt=py-iFY0,tb=iFY1-py,mn=Math.min(tl,tr,tt,tb);if(mn===tl)return{fx:-S*2,fy:0};if(mn===tr)return{fx:S*2,fy:0};if(mn===tt)return{fx:0,fy:-S*2};return{fx:0,fy:S*2};}if(dist>M)return null;var s=S*(1-dist/M);return{fx:(dx/dist)*s,fy:(dy/dist)*s};}
 
-  var bgEl=document.getElementById('bg');
-  var rowEls=[];
-  for(var r=0;r<ROWS;r++){var d=document.createElement('div');d.className='r';bgEl.appendChild(d);rowEls.push(d);}
+  var cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+  cvs.width=innerWidth;cvs.height=innerHeight;
+  ctx.font="9px 'Courier New'";ctx.textBaseline='top';
+  var ALPHA=[0,.06,.14,.22,.32,.44,.56,.68,.80,.90,1];
   var fc=0;
   function render(now){
     fc++;
@@ -109,8 +107,9 @@ document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true
     }
     splat(aStamp,a1x,a1y,0);splat(aStamp,a2x,a2y,Math.PI);
     if(mouseOn)splat(cStamp,cFX,cFY,0);
+    ctx.fillStyle='#060608';ctx.fillRect(0,0,cvs.width,cvs.height);
+    ctx.fillStyle='#d4d0c8';
     for(var row=0;row<ROWS;row++){
-      var line='';
       for(var col=0;col<COLS;col++){
         var fy=row*FOS,fx=col*FOS,sum=0,aSum=0,aW=0;
         for(var sy=0;sy<FOS;sy++)for(var sx=0;sx<FOS;sx++){var idx=(fy+sy)*FCOLS+(fx+sx);sum+=fieldB[idx];if(fieldB[idx]>0.01){aSum+=fieldA[idx]*fieldB[idx];aW+=fieldB[idx];}}
@@ -121,15 +120,16 @@ document.addEventListener('touchstart',function(e){if(e.touches[0]){mouseOn=true
         var nd=ndx*ndx+ndy*ndy;
         var fade=nd<1?1:1;
         avg*=fade;
-        if(avg<0.03){line+=' ';continue;}
+        if(avg<0.03)continue;
         var angle=aW>0?aSum/aW:0;
         var ai8=((Math.round(angle/(Math.PI/4))%8)+8)%8;
         var ch=avg>0.3?INT[Math.min(INT.length-1,(avg*INT.length)|0)]:DIR[ai8];
         var alphaIdx=Math.max(1,Math.min(10,Math.round(avg*10)));
-        line+='<span class="a'+alphaIdx+'">'+ch+'</span>';
+        ctx.globalAlpha=ALPHA[alphaIdx];
+        ctx.fillText(ch,col*CW,row*CH);
       }
-      rowEls[row].innerHTML=line;
     }
+    ctx.globalAlpha=1;
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);

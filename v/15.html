@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>15 — reaction diffusion</title>
+<title>15 — solar surface</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608,0 0 8px rgba(168,232,208,.1);letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.4}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -29,126 +20,129 @@ ctx.font='8px Courier New';ctx.textBaseline='top';
 var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
-addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;\u2591\u2592\u2593\u2588';
-var N=COLS*ROWS;
+// Solar surface — convective granulation. Hot plasma rises in
+// bright cells, cools, and sinks along the dark lanes between
+// them. Two sunspots drift across the disk. Magnetic loops erupt,
+// glow, and rain back down. The cursor is a magnetic probe —
+// the convection churns and swirls beneath it.
 
-// Two chemicals: U and V, double-buffered
-var U=new Float32Array(N);
-var V=new Float32Array(N);
-var U2=new Float32Array(N);
-var V2=new Float32Array(N);
+var RAMP=' .·:;=+*#%@';
+var SX=0.55,SY=1.06; // cell → granule space (squares up the aspect)
 
-// Parameters — coral/spot pattern
-var Du=0.21,Dv=0.1,f=0.035,k=0.065;
+function gran(x,y,t){
+  var v=Math.sin(x*0.30+t*0.21+Math.sin(y*0.23-t*0.17)*2.3)
+       *Math.sin(y*0.27-t*0.13+Math.sin(x*0.21+t*0.11)*2.3);
+  v+=0.55*Math.sin(x*0.61-t*0.33+2.1+Math.sin(y*0.43+t*0.19)*1.4)
+        *Math.sin(y*0.57+t*0.29+1.3);
+  v+=0.30*Math.sin(x*1.13+t*0.51)*Math.sin(y*1.07-t*0.47);
+  return v/1.85;
+}
 
-// Initialize: U=1 everywhere, V=0, then seed patches
-for(var i=0;i<N;i++){U[i]=1;V[i]=0;}
+// Sunspots: dark umbrae wandering the disk
+var spots=[
+  {x:COLS*0.30,y:ROWS*0.38,r:6.5,vx:0.009,vy:0.004},
+  {x:COLS*0.72,y:ROWS*0.66,r:4.5,vx:-0.007,vy:-0.003}
+];
 
-// Seed several random rectangular patches of V=1
-function seedPatch(cx,cy,hw,hh){
-  for(var dy=-hh;dy<=hh;dy++){
-    for(var dx=-hw;dx<=hw;dx++){
-      var c=cx+dx,r=cy+dy;
-      if(c>=0&&c<COLS&&r>=0&&r<ROWS){
-        var idx=r*COLS+c;
-        V[idx]=1;
-        U[idx]=0.5;
-      }
+// Magnetic loops: bright arcs anchored at two footpoints
+var Lo=new Float32Array(COLS*ROWS);
+var loops=[];
+function spawnLoop(cx,cy){
+  if(loops.length>=3)return;
+  var span=8+Math.random()*12;
+  loops.push({c0:cx-span,c1:cx+span,row:cy,hMax:6+Math.random()*11,
+              age:0,life:380+(Math.random()*240|0),dir:Math.random()<0.5?1:-1});
+}
+var nextLoop=200;
+
+var pmx=-1,pmy=-1,frame=0;
+
+function render(now){
+  var t=now*0.001*0.55;
+  frame++;
+
+  // autonomous eruptions
+  if(--nextLoop<=0){
+    spawnLoop(Math.random()*COLS,ROWS*(0.15+Math.random()*0.7));
+    nextLoop=350+Math.random()*450|0;
+  }
+  // a fast hand drags the field lines — eruption at the probe
+  if(mOn&&pmx>=0){
+    var mdx=mx-pmx,mdy=my-pmy;
+    if(mdx*mdx+mdy*mdy>900&&Math.random()<0.10)
+      spawnLoop(mx/CW,my/CH);
+  }
+  pmx=mOn?mx:-1;pmy=mOn?my:-1;
+
+  for(var i=0;i<spots.length;i++){
+    var s=spots[i];
+    s.x+=s.vx;s.y+=s.vy;
+    if(s.x<-s.r)s.x=COLS+s.r;if(s.x>COLS+s.r)s.x=-s.r;
+    if(s.y<-s.r)s.y=ROWS+s.r;if(s.y>ROWS+s.r)s.y=-s.r;
+  }
+
+  // loop plasma flows along the arc, rises, then dies away
+  for(var i=0;i<Lo.length;i++)Lo[i]*=0.74;
+  for(var li=loops.length-1;li>=0;li--){
+    var L=loops[li];
+    L.age++;
+    if(L.age>=L.life){loops.splice(li,1);continue;}
+    var rise=Math.min(1,L.age/110);
+    var fade=Math.min(1,(L.life-L.age)/80);
+    var h=L.hMax*rise;
+    var n=Math.ceil(Math.abs(L.c1-L.c0))*2;
+    for(var k=0;k<=n;k++){
+      var sfrac=k/n;
+      var cc=Math.round(L.c0+(L.c1-L.c0)*sfrac);
+      var rr=Math.round(L.row-Math.sin(sfrac*Math.PI)*h);
+      if(cc<0||cc>=COLS||rr<0||rr>=ROWS)continue;
+      var flow=0.5+0.5*Math.sin(sfrac*16*L.dir-L.age*0.22);
+      Lo[rr*COLS+cc]=Math.min(1.4,Lo[rr*COLS+cc]+(0.18+0.5*flow)*fade);
     }
   }
-}
-
-var numSeeds=8;
-for(var s=0;s<numSeeds;s++){
-  var sx=Math.floor(Math.random()*COLS*0.6+COLS*0.2);
-  var sy=Math.floor(Math.random()*ROWS*0.6+ROWS*0.2);
-  var sw=Math.floor(Math.random()*4)+2;
-  var sh=Math.floor(Math.random()*3)+1;
-  seedPatch(sx,sy,sw,sh);
-}
-
-var STEPS_PER_FRAME=6;
-
-function simulate(){
-  for(var step=0;step<STEPS_PER_FRAME;step++){
-    for(var r=0;r<ROWS;r++){
-      for(var c=0;c<COLS;c++){
-        var i=r*COLS+c;
-        // 5-point stencil Laplacian with wrapping
-        var up=r>0?(r-1)*COLS+c:(ROWS-1)*COLS+c;
-        var dn=r<ROWS-1?(r+1)*COLS+c:c;
-        var lt=c>0?r*COLS+c-1:r*COLS+COLS-1;
-        var rt=c<COLS-1?r*COLS+c+1:r*COLS;
-
-        var lapU=U[up]+U[dn]+U[lt]+U[rt]-4*U[i];
-        var lapV=V[up]+V[dn]+V[lt]+V[rt]-4*V[i];
-
-        var u=U[i],v=V[i];
-        var uvv=u*v*v;
-        U2[i]=u+Du*lapU-uvv+f*(1-u);
-        V2[i]=v+Dv*lapV+uvv-(f+k)*v;
-
-        // Clamp
-        if(U2[i]<0)U2[i]=0;if(U2[i]>1)U2[i]=1;
-        if(V2[i]<0)V2[i]=0;if(V2[i]>1)V2[i]=1;
-      }
-    }
-    // Swap buffers
-    var tmpU=U;U=U2;U2=tmpU;
-    var tmpV=V;V=V2;V2=tmpV;
-
-    // Cursor seeds V during simulation steps
-    if(mOn){
-      var mcol=Math.round(mx/CW),mrow=Math.round(my/CH);
-      var rad=4;
-      for(var dr=-rad;dr<=rad;dr++){
-        for(var dc=-rad;dc<=rad;dc++){
-          if(dr*dr+dc*dc>rad*rad)continue;
-          var rr=mrow+dr,cc=mcol+dc;
-          if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS){
-            var idx=rr*COLS+cc;
-            V[idx]=1;
-            U[idx]=0.5;
-          }
-        }
-      }
-    }
-  }
-}
-
-function render(){
-  simulate();
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
 
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW;
-  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3;
-  var cry=(cardRect.height/2/CH)+2;
-
+  var cgx=mx/CW,cgy=my/CH;
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var i=row*COLS+col;
-      var brightness=V[i];
-
-      // Card elliptical fade
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      var fade=nd<1?1:1;
-      brightness*=fade;
-
-      if(brightness<0.03)continue;
-      brightness=Math.min(1,brightness);
-
-      var ci=Math.min(RAMP.length-1,(brightness*RAMP.length)|0);
+      var x=col*SX,y=row*SY;
+      var boost=0;
+      if(mOn){
+        var dc=col-cgx,dr=(row-cgy)*2.08;
+        var d2=dc*dc+dr*dr;
+        if(d2<3000){
+          var g=Math.exp(-d2/520);
+          // swirl the sample point around the probe
+          var ang=g*1.5*Math.sin(t*1.7);
+          var ca=Math.cos(ang),sa=Math.sin(ang);
+          var ox=x-cgx*SX,oy=y-cgy*SY;
+          x=cgx*SX+ox*ca-oy*sa;
+          y=cgy*SY+ox*sa+oy*ca;
+          boost=g*0.30;
+        }
+      }
+      var v=gran(x,y,t);
+      var b=Math.pow((v+1)*0.5,1.55)*0.95+boost;
+      // sunspots eat the light
+      for(var si=0;si<2;si++){
+        var s=spots[si];
+        var sdc=col-s.x,sdr=(row-s.y)*2.08;
+        var sd2=sdc*sdc+sdr*sdr;
+        if(sd2<s.r*s.r*9)
+          b*=1-0.88*Math.exp(-sd2/(s.r*s.r*1.8));
+      }
+      b+=Lo[row*COLS+col];
+      if(b<0.04)continue;
+      b=Math.min(1,b);
+      var ci=Math.min(RAMP.length-1,(b*RAMP.length)|0);
       var ch=RAMP[ci];
       if(ch===' ')continue;
-      ctx.globalAlpha=brightness;
+      ctx.globalAlpha=b;
       ctx.fillText(ch,col*CW,row*CH);
     }
   }

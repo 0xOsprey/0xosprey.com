@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>17 — watching eyes</title>
+<title>17 — osprey</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -26,132 +17,307 @@ var CW=4.8,CH=10,cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 var W=innerWidth,H=innerHeight;cvs.width=W;cvs.height=H;
 var COLS=Math.ceil(W/CW)+1,ROWS=Math.ceil(H/CH)+1;
 ctx.font='8px Courier New';ctx.textBaseline='top';
-var mx=W/2,my=H/2,mOn=false;
+var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
-addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#%@\u2588';
-var ER=0.6;
-var asp=W/H;
+// Osprey — a fish hawk works a stretch of open water. It glides on
+// set wings, beats them slowly when it needs height, marks a fish,
+// kites in place to line up the shot, then folds into a dive and
+// hits the water talons-first. Cursor in the sky is a thermal it
+// rides; cursor held in the water gathers the fish — live bait.
 
-function sdSphere(px,py,pz,r){return Math.sqrt(px*px+py*py+pz*pz)-r;}
+var WROW=Math.floor(ROWS*0.62),WLINE=WROW*CH;
+var WING=Math.max(44,Math.min(64,W*0.045)); // px per wing
 
-// Smooth cursor tracking
-var smx=W/2,smy=H/2;
+// --- water: 1D wave equation along the surface
+var wh=new Float32Array(COLS),wvel=new Float32Array(COLS);
+function waveStep(){
+  for(var i=0;i<COLS;i++){
+    var l=wh[i>0?i-1:i],r=wh[i<COLS-1?i+1:i];
+    wvel[i]+=(l+r-2*wh[i])*0.22;
+    wvel[i]*=0.982;
+  }
+  for(var i=0;i<COLS;i++)wh[i]+=wvel[i];
+}
+
+// --- fish, cruising under the surface
+var FN=5,fish=[];
+for(var i=0;i<FN;i++)fish.push({
+  x:Math.random()*W,
+  y:WLINE+30+Math.random()*Math.max(40,H-WLINE-70),
+  vx:(Math.random()<0.5?-1:1)*(0.35+Math.random()*0.5),
+  ph:Math.random()*6.28,
+  gone:0
+});
+
+var drops=[];
+
+// --- the bird
+var bird={x:W*0.3,y:WLINE*0.35,vx:0.9,vy:0,st:'soar',t:0,tgt:0,held:0,
+          ph:0,rate:0.015,amp:0.06,base:0.12,burst:0};
+
+function plot(c,r,ch,a){ctx.globalAlpha=a;ctx.fillText(ch,c*CW,r*CH);}
+
+// One wing: two segments (shoulder→wrist, wrist→tip) sampled into cells.
+// flap = shoulder angle (rad, + is tips-up), bend = wrist droop.
+function drawWing(bx,by,side,flap,bend){
+  var wr=0.42,NS=16;
+  var a1=flap,a2=flap-bend;
+  var uW=wr*WING*Math.cos(a1),vW=-wr*WING*Math.sin(a1);
+  var pc=Math.round((bx+side*3)/CW),pr=Math.round(by/CH);
+  for(var k=1;k<=NS;k++){
+    var s=k/NS,u,v;
+    if(s<wr){var t1=s/wr;u=t1*uW;v=t1*vW;}
+    else{var t2=(s-wr)/(1-wr);
+      u=uW+t2*(1-wr)*WING*Math.cos(a2);
+      v=vW-t2*(1-wr)*WING*Math.sin(a2);}
+    var c=Math.round((bx+side*3+side*u)/CW),r=Math.round((by+v)/CH);
+    if(c===pc&&r===pr)continue;
+    var dr=r-pr;
+    var ch;
+    if(dr===0)ch=s<wr?((k&1)?'~':'-'):'-';
+    else ch=((dr<0)===(side>0))?'/':'\\';
+    plot(c,r,ch,0.95-0.25*s);
+    // primaries: feather tips trailing off the outer wing
+    if(s>0.58&&(k&1))plot(c,r+1,',',0.40);
+    pc=c;pr=r;
+  }
+}
+
+function drawBird(){
+  var b=bird;
+  var bc=Math.round(b.x/CW),br=Math.round(b.y/CH);
+  if(b.st==='dive'){
+    // folded delta: wings swept up-back, head down
+    for(var side=-1;side<=1;side+=2){
+      var pc=bc,pr=br;
+      for(var k=1;k<=7;k++){
+        var t=k/7;
+        var c=Math.round((b.x+side*t*WING*0.30)/CW);
+        var r=Math.round((b.y-t*WING*0.50)/CH);
+        if(c===pc&&r===pr)continue;
+        plot(c,r,side>0?'/':'\\',0.92-0.3*t);
+        pc=c;pr=r;
+      }
+    }
+    plot(bc,br-2,'=',0.7);plot(bc,br-1,'*',0.9);
+    plot(bc,br,'@',0.95);plot(bc,br+1,'o',0.95);plot(bc,br+2,'v',0.85);
+    return;
+  }
+  var flap=b.base+b.amp*Math.sin(b.ph);
+  var bend=0.38-0.50*b.amp*Math.sin(b.ph-0.9);
+  drawWing(b.x,b.y,1,flap,bend);
+  drawWing(b.x,b.y,-1,flap,bend);
+  var dir=b.vx>=0?1:-1;
+  plot(bc-dir*3,br,'-',0.6);          // tail
+  plot(bc-dir*2,br,'=',0.8);
+  plot(bc-dir,br,'*',0.9);            // body
+  plot(bc,br,'@',0.95);
+  plot(bc+dir,br,'o',0.95);           // head
+  plot(bc+dir*2,br,dir>0?'>':'<',0.8);// beak
+  if(b.held>0)plot(bc,br+1,'<',0.55); // the catch
+}
+
+function splashAt(x){
+  var c=Math.max(1,Math.min(COLS-2,Math.round(x/CW)));
+  wvel[c]-=6.5;wvel[c-1]-=3.2;wvel[c+1]-=3.2;
+  if(c>1)wvel[c-2]-=1.4;if(c<COLS-2)wvel[c+2]-=1.4;
+  for(var i=0;i<22;i++)
+    drops.push({x:x+(Math.random()-0.5)*20,y:WLINE,
+                vx:(Math.random()-0.5)*3.8,vy:-(2.2+Math.random()*3.8),life:52});
+}
 
 function render(now){
-  var t=now*.001;
+  var t=now*0.001;
+  waveStep();
 
-  // Smooth follow
-  if(mOn){smx+=(mx-smx)*0.06;smy+=(my-smy)*0.06;}
-  else{smx+=(W/2-smx)*0.01;smy+=(H/2-smy)*0.01;}
-
-  // Blink every ~5 seconds
-  var bc=t%5;
-  var bs=1;
-  if(bc>4.6){var bt=(bc-4.6)/0.4;bs=1-Math.sin(bt*Math.PI)*.85;}
-
-  // Dynamic eye positions — orbit and follow cursor
-  var driftX=Math.sin(t*.6)*.4;
-  var driftY=Math.cos(t*.4)*.25;
-  if(mOn){
-    var cx=(smx/W-.5)*2;
-    var cy=-(smy/H-.5)*2;
-    driftX=driftX*.3+cx*.5;
-    driftY=driftY*.3+cy*.4;
+  // --- fish behavior
+  var baited=mOn&&my>WLINE+14;
+  for(var i=0;i<FN;i++){
+    var f=fish[i];
+    if(f.gone>0){
+      if(--f.gone===0){
+        f.x=Math.random()<0.5?-10:W+10;
+        f.y=WLINE+30+Math.random()*Math.max(40,H-WLINE-70);
+        f.vx=(f.x<0?1:-1)*(0.4+Math.random()*0.4);
+      }
+      continue;
+    }
+    f.ph+=0.035;
+    f.vx+=Math.sin(f.ph*0.43+i*2.6)*0.006;
+    if(baited){
+      var bd=Math.abs(f.x-mx);
+      if(bd<340){
+        f.vx+=(mx>f.x?1:-1)*Math.min(0.02,bd*0.0001+0.006);
+        f.y+=(Math.min(my,H-24)-f.y)*0.004;
+      }
+    }
+    if(f.vx>1.0)f.vx=1.0;if(f.vx<-1.0)f.vx=-1.0;
+    f.x+=f.vx;
+    f.y+=Math.sin(f.ph)*0.18;
+    if(f.x<-20){f.x=-20;f.vx=Math.abs(f.vx);}
+    if(f.x>W+20){f.x=W+20;f.vx=-Math.abs(f.vx);}
+    if(f.y<WLINE+22)f.y=WLINE+22;
+    if(f.y>H-18)f.y=H-18;
   }
 
-  var sep=1.35;
-  var e1x=-sep+driftX,e1y=driftY,e1z=0;
-  var e2x=sep+driftX,e2y=driftY,e2z=0;
-
-  // Shared gaze direction (parallel — both eyes look the same way)
-  var lookX=mOn?(smx/W-.5)*0.9:Math.sin(t*.3)*.08;
-  var lookY=mOn?-(smy/H-.5)*0.9:Math.cos(t*.5)*.05;
-  var lookZ=1.0;
-  var lookL=Math.sqrt(lookX*lookX+lookY*lookY+lookZ*lookZ);
-  lookX/=lookL;lookY/=lookL;lookZ/=lookL;
-
-  // Light from above-front, cursor influenced
-  var lx=mOn?(smx/W-.5):.3;
-  var ly=mOn?-(smy/H-.5)*0.8:.5;
-  var lz=.6;
-  var ll=Math.sqrt(lx*lx+ly*ly+lz*lz);lx/=ll;ly/=ll;lz/=ll;
-
-  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW;
-  var ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3;
-  var cry=(cardRect.height/2/CH)+2;
-
-  for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
-    var u=(col/COLS-.5)*2*asp,v2=(row/ROWS-.5)*2;
-    var rdx=u,rdy=-v2,rdz=-1.5;
-    var rl=Math.sqrt(rdx*rdx+rdy*rdy+rdz*rdz);rdx/=rl;rdy/=rl;rdz/=rl;
-    var rox=0,roy=0,roz=4;
-    var totalD=0,hit=false;
-    for(var s=0;s<40;s++){
-      var px=rox+rdx*totalD,py=roy+rdy*totalD,pz=roz+rdz*totalD;
-      var d=Math.min(
-        sdSphere(px-e1x,(py-e1y)/bs,pz-e1z,ER),
-        sdSphere(px-e2x,(py-e2y)/bs,pz-e2z,ER)
-      );
-      if(d<.01){hit=true;break;}
-      totalD+=d;if(totalD>10)break;
-    }
-    if(!hit)continue;
-
-    var px=rox+rdx*totalD,py=roy+rdy*totalD,pz=roz+rdz*totalD;
-
-    // Which eye?
-    var d1=sdSphere(px-e1x,(py-e1y)/bs,pz-e1z,ER);
-    var d2=sdSphere(px-e2x,(py-e2y)/bs,pz-e2z,ER);
-    var ex=d1<d2?e1x:e2x,ey=d1<d2?e1y:e2y,ez=d1<d2?e1z:e2z;
-
-    // Analytical normal (with blink squish)
-    var nx=px-ex,ny=(py-ey)/(bs*bs),nz=pz-ez;
-    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;nx/=nl;ny/=nl;nz/=nl;
-
-    // Shared parallel gaze direction (pre-normalized)
-    var lkx=lookX,lky=lookY,lkz=lookZ;
-
-    var eyeDot=nx*lkx+ny*lky+nz*lkz;
-
-    var bright;
-    if(eyeDot>.9){
-      // Pupil — dark
-      bright=.04;
-    }else if(eyeDot>.7){
-      // Iris — gradient from dark to medium
-      var iT=(eyeDot-.7)/(.9-.7);
-      bright=.28*(1-iT*.85);
+  // --- bird state machine (wing motion is continuous, not frames)
+  var b=bird;
+  b.t++;
+  var rateT=0.015,ampT=0.06;
+  b.base=0.12;
+  if(b.st==='soar'){
+    if(b.burst>0){b.burst--;rateT=0.075;ampT=0.45;}
+    else if(Math.random()<0.0012)b.burst=250; // ~3 slow beats, then long glides
+    var xT,yT;
+    if(mOn&&my<WLINE-40){
+      xT=mx;yT=Math.max(30,Math.min(WLINE-150,my));
     }else{
-      // Sclera — diffuse + specular
-      var diff=Math.max(0,nx*lx+ny*ly+nz*lz);
-      bright=.25+diff*.65;
-      // Specular
-      var ref=2*(nx*lx+ny*ly+nz*lz);
-      var rx=ref*nx-lx,ry=ref*ny-ly,rz=ref*nz-lz;
-      var spec=Math.pow(Math.max(0,rx*(-rdx)+ry*(-rdy)+rz*(-rdz)),20);
-      bright+=spec*.35;
+      xT=W*0.5+Math.sin(t*0.11)*W*0.34;
+      yT=WLINE*0.34+Math.sin(t*0.19+1.5)*WLINE*0.12;
     }
-    bright=Math.min(1,Math.max(0,bright));
-
-    // Elliptical card fade
-    var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-    var nd=ndx*ndx+ndy*ndy;
-    var fade=nd<1?1:1;
-    bright*=fade;
-
-    var ci=Math.min(RAMP.length-1,(bright*RAMP.length)|0);
-    var ch=RAMP[ci];if(ch===' ')continue;
-    ctx.globalAlpha=bright;ctx.fillText(ch,col*CW,row*CH);
+    b.vx+=(xT-b.x)*0.00045;b.vy+=(yT-b.y)*0.0011;
+    b.vx*=0.985;b.vy*=0.94;
+    if(b.vx>1.5)b.vx=1.5;if(b.vx<-1.5)b.vx=-1.5;
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.held>0)b.held--;
+    if(b.t>500+((t*997)%420)&&b.held===0){
+      var bi=-1,bd2=1e18;
+      for(var i=0;i<FN;i++){
+        if(fish[i].gone)continue;
+        var dd=Math.abs(fish[i].x-b.x);
+        if(dd<bd2){bd2=dd;bi=i;}
+      }
+      if(bi>=0){b.tgt=bi;b.st='hover';b.t=0;}
+    }
+  }else if(b.st==='hover'){
+    rateT=0.115;ampT=0.40;b.base=0.15; // kiting — quick but smooth
+    var f=fish[b.tgt];
+    if(f.gone){b.st='soar';b.t=0;}
+    else{
+      var xT=f.x+f.vx*60,yT=WLINE-130;
+      b.vx+=(xT-b.x)*0.004;b.vy+=(yT-b.y)*0.004;
+      b.vx*=0.90;b.vy*=0.90;
+      b.x+=b.vx+Math.sin(b.t*0.15)*0.25;b.y+=b.vy;
+      if(b.t>170&&Math.abs(b.x-xT)<16){b.st='dive';b.t=0;b.vy=2.2;}
+      if(b.t>420){b.st='soar';b.t=0;}
+    }
+  }else if(b.st==='dive'){
+    var f=fish[b.tgt];
+    b.vy+=0.55;if(b.vy>9.5)b.vy=9.5;
+    if(!f.gone)b.vx+=((f.x-b.x)*0.012-b.vx)*0.2;
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.y>=WLINE-4){
+      splashAt(b.x);
+      if(!f.gone&&Math.abs(f.x-b.x)<36&&f.y-WLINE<95){f.gone=460;b.held=340;}
+      b.st='under';b.t=0;
+    }
+  }else if(b.st==='under'){
+    if(b.t>30){b.st='climb';b.t=0;b.vy=-1.4;b.vx=b.x>W*0.5?-0.5:0.5;}
+  }else if(b.st==='climb'){
+    rateT=0.085;ampT=0.55;b.base=0.05; // deep loaded wingbeats
+    b.vy=-1.0;
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.y<WLINE*0.36){b.st='soar';b.t=0;}
   }
-  ctx.globalAlpha=1;requestAnimationFrame(render);
+  b.rate+=(rateT-b.rate)*0.06;
+  b.amp+=(ampT-b.amp)*0.06;
+  b.ph+=b.rate;
+  if(b.x<WING)b.x=WING;if(b.x>W-WING)b.x=W-WING;
+  if(b.y<20)b.y=20;
+
+  if(baited&&(b.t%7===0)){
+    var mc=Math.max(1,Math.min(COLS-2,Math.round(mx/CW)));
+    wvel[mc]-=0.25;
+  }
+
+  // --- spray
+  for(var di=drops.length-1;di>=0;di--){
+    var d=drops[di];
+    d.x+=d.vx;d.y+=d.vy;d.vy+=0.30;d.life--;
+    if(d.y>WLINE+4){
+      var c=Math.max(1,Math.min(COLS-2,Math.round(d.x/CW)));
+      wvel[c]-=0.35;
+      drops.splice(di,1);
+    }else if(d.life<=0)drops.splice(di,1);
+  }
+
+  // --- render
+  ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
+
+  // sky: two drifting cloud layers
+  for(var row=0;row<WROW-2;row++){
+    for(var col=0;col<COLS;col++){
+      var c1=Math.sin(col*0.05+t*0.05+Math.sin(row*0.31)*1.2)
+            *Math.sin(row*0.23-t*0.018+Math.sin(col*0.013+t*0.01)*2.0);
+      var c2=Math.sin(col*0.023-t*0.022+Math.sin(row*0.19)*1.6)
+            *Math.sin(row*0.31+t*0.011+2.2);
+      var cl=Math.max(c1-0.58,c2-0.70);
+      if(cl<=0)continue;
+      ctx.globalAlpha=Math.min(0.26,cl*0.65);
+      ctx.fillText('~',col*CW,row*CH);
+    }
+  }
+
+  // water surface, with a soft sun-glitter path
+  var gx=W*0.68;
+  for(var col=0;col<COLS;col++){
+    var hs=wh[col]+2.2*Math.sin(col*0.11+t*0.8)+1.5*Math.sin(col*0.053-t*0.5);
+    var off=Math.max(-4,Math.min(4,Math.round(hs*0.30)));
+    var glit=Math.exp(-Math.pow((col*CW-gx)/(W*0.09),2));
+    var a=0.40+Math.min(0.55,Math.abs(hs)*0.06)+glit*0.12;
+    ctx.globalAlpha=Math.min(1,a);
+    ctx.fillText('~',col*CW,(WROW+off)*CH);
+    ctx.globalAlpha=a*0.35;
+    ctx.fillText('-',col*CW,(WROW+off+1)*CH);
+    if(glit>0.25&&Math.sin(col*7.7+t*2.6)>0.75){
+      ctx.globalAlpha=glit*0.30;
+      ctx.fillText('*',col*CW,(WROW+off-1)*CH);
+    }
+  }
+  // subsurface shimmer, fading with depth
+  for(var row=WROW+2;row<ROWS;row++){
+    var df=1-(row-WROW)/(ROWS-WROW);
+    for(var col=0;col<COLS;col++){
+      var ss=Math.sin(col*0.13+row*0.7-t*0.6)
+            +0.5*Math.sin(col*0.041-row*0.33+t*0.35);
+      if(ss<=1.05)continue;
+      ctx.globalAlpha=0.04+0.06*df;
+      ctx.fillText('·',col*CW,row*CH);
+    }
+  }
+
+  // fish shadows
+  for(var i=0;i<FN;i++){
+    var f=fish[i];
+    if(f.gone)continue;
+    var depth01=(f.y-WLINE)/Math.max(1,H-WLINE);
+    ctx.globalAlpha=0.34-depth01*0.18;
+    var c=Math.round(f.x/CW),r=Math.round(f.y/CH);
+    var wig=Math.sin(f.ph*2)>0?'=':'-';
+    if(f.vx>=0){
+      ctx.fillText(wig,(c-2)*CW,r*CH);ctx.fillText('=',(c-1)*CW,r*CH);
+      ctx.fillText('=',c*CW,r*CH);ctx.fillText('>',(c+1)*CW,r*CH);
+    }else{
+      ctx.fillText('<',(c-1)*CW,r*CH);ctx.fillText('=',c*CW,r*CH);
+      ctx.fillText('=',(c+1)*CW,r*CH);ctx.fillText(wig,(c+2)*CW,r*CH);
+    }
+  }
+
+  // spray
+  ctx.globalAlpha=0.8;
+  for(var di=0;di<drops.length;di++){
+    var d=drops[di];
+    ctx.fillText(d.vy<0?"'":'.',d.x,d.y);
+  }
+
+  if(b.st!=='under')drawBird();
+  ctx.globalAlpha=1;
+  requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 })();

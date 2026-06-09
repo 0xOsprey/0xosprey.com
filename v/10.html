@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>10 — flow field</title>
+<title>10 — physarum</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#060608;overflow:hidden;cursor:crosshair}
 canvas{position:fixed;inset:0;z-index:0}
 .content{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:48px}
 .card{pointer-events:auto;text-align:center}
-.name{position:relative;height:52px;margin-bottom:20px;white-space:nowrap}
-.n1,.n2{position:absolute;top:0;left:50%;transform:translateX(-50%);font:40px/1 'Courier New',monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px #060608,0 0 22px #060608;letter-spacing:.04em}
-.n1{animation:ns1 14s infinite}
-.n2{animation:ns2 14s infinite;opacity:0}
-@keyframes ns1{0%,40%{opacity:1;filter:blur(0)}55%{opacity:0;filter:blur(7px)}90%{opacity:0;filter:blur(7px)}100%{opacity:1;filter:blur(0)}}@keyframes ns2{0%,40%{opacity:0;filter:blur(7px)}55%{opacity:1;filter:blur(0)}90%{opacity:1;filter:blur(0)}100%{opacity:0;filter:blur(7px)}}
-.icons{display:flex;gap:28px;align-items:center;justify-content:center}
-.icons a{color:rgba(255,255,255,.85);opacity:1;transition:opacity .3s;text-decoration:none}
-.icons a:hover{opacity:.45}
-.icons svg{display:block;width:28px;height:28px;filter:drop-shadow(0 0 2px rgba(6,6,8,.9)) drop-shadow(0 0 6px rgba(6,6,8,.5))}
 </style></head><body>
 <canvas id="c"></canvas>
 <div class="content"><div class="card" id="card"></div></div>
@@ -30,104 +21,96 @@ var mx=-1,my=-1,mOn=false;
 addEventListener('mousemove',function(e){mOn=true;mx=e.clientX;my=e.clientY});
 addEventListener('mouseleave',function(){mOn=false});
 addEventListener('touchstart',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});addEventListener('touchmove',function(e){if(e.touches[0]){mOn=true;mx=e.touches[0].clientX;my=e.touches[0].clientY;}},{passive:true});
-var cardEl=document.getElementById('card');
-cardEl.innerHTML='';
+document.getElementById('card').innerHTML='';
 
-var RAMP=' .\u00B7:;=+*#';
-var DIRS=['\u2192','\u2197','\u2191','\u2196','\u2190','\u2199','\u2193','\u2198'];
+// Physarum polycephalum — slime mold network.
+// Agents follow chemical trails and deposit more trail,
+// self-organizing into branching vein networks.
+// Cursor deposits food — network grows toward it.
 
-// Noise flow field: particles follow a slowly-evolving vector field
-// Field angle computed from layered sine waves (smooth, Perlin-like)
-// Particles leave trails that decay, painting organic flowing fabric.
-var N=520;
-var px=new Float32Array(N),py=new Float32Array(N);
-for(var i=0;i<N;i++){px[i]=Math.random()*W;py[i]=Math.random()*H;}
-
-var SPEED=1.75,DECAY=0.89;
-var field=new Float32Array(COLS*ROWS);
-var dfx=new Float32Array(COLS*ROWS);
-var dfy=new Float32Array(COLS*ROWS);
-
-// Smooth multi-octave angle field — evolves slowly over time
-function flowAngle(x,y,t){
-  var s=0.030;
-  return(Math.sin(x*s*1.00+y*s*0.40+t*0.160)*0.38
-        +Math.sin(x*s*0.55-y*s*1.05+t*0.110)*0.28
-        +Math.sin(x*s*1.35+y*s*0.85-t*0.130)*0.20
-        +Math.sin(x*s*0.28+y*s*1.55+t*0.095)*0.16
-        +Math.sin((x+y)*s*0.75+t*0.200)*0.18
-        +Math.sin((x-y)*s*0.60-t*0.140)*0.14)*Math.PI*2.8;
+var DIRS=['─','╲','│','╱','─','╲','│','╱'];
+var N=600;
+var ax=new Float32Array(N),ay=new Float32Array(N),aa=new Float32Array(N);
+for(var i=0;i<N;i++){
+  ax[i]=Math.random()*COLS;
+  ay[i]=Math.random()*ROWS;
+  aa[i]=Math.random()*Math.PI*2;
 }
 
-function render(now){
-  var t=now*0.001;
+var trail=new Float32Array(COLS*ROWS);
+var trailBuf=new Float32Array(COLS*ROWS);
+var SA=Math.PI/4; // sensor angle offset
+var SD=11;        // sensor distance (cells)
+var RA=Math.PI/4; // rotation step
+var DECAY=0.982;  // trails persist longer
+var DEP=0.48;     // gentle deposit — no harsh flares
+var SS=0.75;      // slow agents
 
-  // Decay persistence fields
-  for(var i=0;i<field.length;i++){
-    field[i]*=DECAY;dfx[i]*=DECAY;dfy[i]*=DECAY;
+function sense(x,y,angle){
+  var sc=Math.round(x+Math.cos(angle)*SD);
+  var sr=Math.round(y+Math.sin(angle)*SD);
+  if(sc<0||sc>=COLS||sr<0||sr>=ROWS) return 0;
+  return trail[sr*COLS+sc];
+}
+
+function render(){
+  // Diffuse + decay
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var idx=r*COLS+c;
+      var s=trail[idx]*0.5;
+      if(r>0)        s+=trail[(r-1)*COLS+c]*0.125;
+      if(r<ROWS-1)   s+=trail[(r+1)*COLS+c]*0.125;
+      if(c>0)        s+=trail[idx-1]*0.125;
+      if(c<COLS-1)   s+=trail[idx+1]*0.125;
+      trailBuf[idx]=s*DECAY; // weights sum to 1.0, times decay
+    }
+  }
+  var tmp=trail;trail=trailBuf;trailBuf=tmp;
+
+  // Cursor deposits food
+  if(mOn){
+    var mc=(mx/CW)|0,mr=(my/CH)|0;
+    for(var dr=-3;dr<=3;dr++) for(var dc=-3;dc<=3;dc++){
+      var rr=mr+dr,cc=mc+dc;
+      if(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS) trail[rr*COLS+cc]=Math.min(2,trail[rr*COLS+cc]+0.4);
+    }
   }
 
-  // Move particles along flow field
+  // Update agents
   for(var i=0;i<N;i++){
-    var a=flowAngle(px[i],py[i],t);
-    var vx=Math.cos(a)*SPEED;
-    var vy=Math.sin(a)*SPEED;
-
-    // Cursor creates a vortex: particles swirl around it
-    if(mOn){
-      var mdx=px[i]-mx,mdy=py[i]-my;
-      var md=Math.sqrt(mdx*mdx+mdy*mdy)||1;
-      if(md<180){
-        var mf=(1-md/180)*(1-md/180)*2.2;
-        // Tangential swirl (perpendicular to radius)
-        vx+=-mdy/md*mf;
-        vy+= mdx/md*mf;
-      }
+    var fwd=sense(ax[i],ay[i],aa[i]);
+    var lft=sense(ax[i],ay[i],aa[i]-SA);
+    var rgt=sense(ax[i],ay[i],aa[i]+SA);
+    if(fwd>=lft&&fwd>=rgt){
+      // no turn
+    } else if(lft>rgt){
+      aa[i]-=RA;
+    } else if(rgt>lft){
+      aa[i]+=RA;
+    } else {
+      aa[i]+=(Math.random()-0.5)*2*RA;
     }
-
-    px[i]+=vx;py[i]+=vy;
-    // Toroidal wrap
-    if(px[i]<0)px[i]+=W;else if(px[i]>=W)px[i]-=W;
-    if(py[i]<0)py[i]+=H;else if(py[i]>=H)py[i]-=H;
-
-    // Splat onto density+direction fields
-    var col=px[i]/CW|0,row=py[i]/CH|0;
-    if(col<0||col>=COLS||row<0||row>=ROWS)continue;
-    var idx=row*COLS+col,v=0.32;
-    field[idx]+=v;dfx[idx]+=vx*v;dfy[idx]+=vy*v;
-    if(col>0)      {field[idx-1]   +=v*0.18;dfx[idx-1]   +=vx*v*0.18;dfy[idx-1]   +=vy*v*0.18;}
-    if(col<COLS-1) {field[idx+1]   +=v*0.18;dfx[idx+1]   +=vx*v*0.18;dfy[idx+1]   +=vy*v*0.18;}
-    if(row>0)      {field[idx-COLS]+=v*0.18;dfx[idx-COLS]+=vx*v*0.18;dfy[idx-COLS]+=vy*v*0.18;}
-    if(row<ROWS-1) {field[idx+COLS]+=v*0.18;dfx[idx+COLS]+=vx*v*0.18;dfy[idx+COLS]+=vy*v*0.18;}
+    ax[i]+=Math.cos(aa[i])*SS;
+    ay[i]+=Math.sin(aa[i])*SS;
+    if(ax[i]<0)ax[i]+=COLS; if(ax[i]>=COLS)ax[i]-=COLS;
+    if(ay[i]<0)ay[i]+=ROWS; if(ay[i]>=ROWS)ay[i]-=ROWS;
+    var c2=ax[i]|0,r2=ay[i]|0;
+    if(c2>=0&&c2<COLS&&r2>=0&&r2<ROWS) trail[r2*COLS+c2]=Math.min(2,trail[r2*COLS+c2]+DEP);
   }
 
   ctx.fillStyle='#060608';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffffff';
-
-  var cardRect=cardEl.getBoundingClientRect();
-  var ccx=(cardRect.left+cardRect.right)/2/CW,ccy=(cardRect.top+cardRect.bottom)/2/CH;
-  var crx=(cardRect.width/2/CW)+3,cry=(cardRect.height/2/CH)+2;
-
   for(var row=0;row<ROWS;row++){
     for(var col=0;col<COLS;col++){
-      var idx=row*COLS+col;
-      var b=Math.min(1,field[idx]);
-      if(b<0.03)continue;
-
-      var ndx=(col-ccx)/crx,ndy=(row-ccy)/cry;
-      var nd=ndx*ndx+ndy*ndy;
-      b*=nd<1?1:1;
-      if(b<0.03)continue;
-
-      var ch;
-      if(b>0.48){
-        ch=RAMP[Math.min(RAMP.length-1,(b*(RAMP.length-1))|0)];
-      }else{
-        var angle=Math.atan2(dfy[idx],dfx[idx]);
-        var di=((Math.round(angle/(Math.PI/4))%8)+8)%8;
-        ch=DIRS[di];
-      }
+      var b=trail[row*COLS+col];
+      if(b<0.04) continue;
+      b=Math.min(1,b);
+      var dc=(trail[row*COLS+Math.min(col+1,COLS-1)]-trail[row*COLS+Math.max(col-1,0)]);
+      var dr=(trail[Math.min(row+1,ROWS-1)*COLS+col]-trail[Math.max(row-1,0)*COLS+col]);
+      var ang=Math.atan2(dr,dc);
+      var di=((Math.round(ang/(Math.PI/4))%8)+8)%8;
       ctx.globalAlpha=b;
-      ctx.fillText(ch,col*CW,row*CH);
+      ctx.fillText(DIRS[di],col*CW,row*CH);
     }
   }
   ctx.globalAlpha=1;
