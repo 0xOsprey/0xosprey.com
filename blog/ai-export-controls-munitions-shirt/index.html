@@ -21,7 +21,7 @@ header{margin-bottom:48px}
 h1{font-size:clamp(20px,4vw,28px);line-height:1.25;color:#fff;font-weight:normal;margin-bottom:16px}
 .meta{font-size:11px;color:#fff;letter-spacing:.06em}
 
-h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin:48px 0 18px;font-weight:normal}
+h2{display:none}
 
 p{margin-bottom:1.4em;color:#fff}
 p:last-child{margin-bottom:0}
@@ -55,11 +55,14 @@ tr:last-child td{border-bottom:none}
   <div class="meta">Joe Coll &nbsp;·&nbsp; Jun 12, 2026</div>
 </header>
 
-<h2>1995</h2>
+<p>The shirt was three lines of Perl. It sat on your chest. It was a felony.</p>
 
-<p>The US government once put the RSA encryption algorithm on the same export-control list as cruise missiles. Strong cryptography — keys over 40 bits — was a "munition" under the International Traffic in Arms Regulations (ITAR), administered by the State Department, with felony penalties for unauthorized export. The deemed export rule extended this to showing the technology to a foreign national on US soil. Their eyes on your screen: federal crime.</p>
+<img class="shirt-img" src="https://store.blockstream.com/cdn/shop/files/RSA_Shirt_square_back.png?v=1763692241&width=1946" alt="The original RSA munitions t-shirt back, showing the Perl script and Bill of Rights passages">
+<div class="img-caption">The original shirt. Blockstream still sells reproductions.</div>
 
-<p>Cryptographer Adam Back designed a response. He printed a working RSA implementation on a t-shirt. The complete text of this "international munition" was approximately 220 characters.</p>
+<p>In 1995, the US government put RSA encryption on the same export-control list as cruise missiles. Strong cryptography — keys over 40 bits — was a "munition" under the International Traffic in Arms Regulations (ITAR), administered by the State Department, with felony penalties for unauthorized export. The deemed export rule made it worse: showing the technology to a foreign national on US soil counted as an export. Their eyes on your screen: federal crime.</p>
+
+<p>Cryptographer Adam Back decided to make the absurdity literal. He printed a working RSA implementation on a t-shirt — 220 characters of Perl — and labeled it accordingly.</p>
 
 <div class="code">
   <div class="label">RSA encryption — compact Perl (representative, circa 1995)</div>
@@ -74,26 +77,27 @@ and may not be exported from the United States,
 or shown to a foreign national.</pre>
 </div>
 
-<img class="shirt-img" src="https://store.blockstream.com/cdn/shop/files/RSA_Shirt_square_back.png?v=1763692241&width=1946" alt="The original RSA munitions t-shirt back, showing the Perl script and Bill of Rights passages">
-<div class="img-caption">The original shirt. Blockstream still sells reproductions.</div>
+<p>At DEF CON — packed with foreign nationals — wearing it was technically multiple counts of illegal arms export. The code spread to mugs, tattoos, email signatures. Every copy: another munitions shipment.</p>
 
-<p>At DEF CON — a conference packed with foreign nationals — wearing it was technically committing multiple counts of illegal arms export. That was the point. The code also appeared on coffee mugs, tattoos, and email signatures. Every distribution: another munitions shipment.</p>
+<h2>They won. Sort of.</h2>
 
-<h2>1999</h2>
+<p>Daniel Bernstein sued after the State Department told him he'd need a munitions dealer license to publish his dissertation. The Ninth Circuit ruled in 1999: source code is protected speech. You cannot apply prior restraint to mathematics written as software.</p>
 
-<p>Daniel Bernstein sued after the State Department told him he'd need to register as a munitions dealer to publish his dissertation. The Ninth Circuit ruled in 1999: source code is protected speech. You cannot apply prior restraint to mathematics written as software.</p>
+<p>The Clinton administration relented. Cryptography moved from ITAR — the weapons shelf — to EAR, the Export Administration Regulations, a dual-use commercial framework run by the Commerce Department. The cypherpunks called it a win. The shirt retired.</p>
 
-<p>The Clinton administration moved cryptography from ITAR (weapons shelf) to EAR — the Export Administration Regulations, administered by the Commerce Department, the dual-use commercial technology framework. The cypherpunks had won.</p>
+<p>What they had actually won was narrower than it looked. The government was forced to change the shelf, not the policy. The controls remained. The deemed export rule remained. The mechanism remained. The government filed one institutional note for later: <em>start with EAR next time.</em></p>
 
-<p>What they had actually won: the government was forced to move math from the weapons shelf to the dual-use shelf. The controls didn't disappear. The bureaucratic container changed. The government filed a note: <em>next time, start with EAR.</em></p>
+<h2>Next time arrived.</h2>
 
-<h2>June 2026</h2>
+<p>On June 9, 2026, Anthropic released Claude Fable 5 — a Mythos-class frontier model sharing its weights with the restricted Claude Mythos 5, estimated at roughly 10 trillion parameters. The US government applied export controls to the weights under <strong>EAR</strong> — the exact framework the cypherpunks drove them to in 1999. Anthropic reportedly restricted global access to comply with the deemed export rule.</p>
 
-<p>Anthropic released Claude Fable 5 on June 9, 2026 — a Mythos-class frontier model sharing its weights with the restricted Claude Mythos 5, estimated at roughly 10 trillion parameters. The US government applied export controls to the Mythos 5 weights under <strong>EAR</strong> — the exact framework the cypherpunks forced them into in 1999. Anthropic reportedly restricted access globally to ensure compliance with the deemed export rule.</p>
+<p>Same play. Same mechanism. The rulebook they were handed after losing.</p>
 
-<p>Same play. Different rulebook. The government remembered.</p>
+<p>Which raises an obvious question: if someone wanted to respond the same way Back did — print the illegal weapon on a shirt, wear it to DEF CON — what would that take?</p>
 
-<h2>How big is the new shirt?</h2>
+<h2>The new shirt.</h2>
+
+<p>The RSA shirt was 220 characters. Fable 5's weights, printed as text, run to roughly 150 trillion characters — each parameter as a signed decimal number.</p>
 
 <table>
   <tr><th>Item</th><th>Characters</th></tr>
@@ -103,23 +107,21 @@ or shown to a foreign national.</pre>
   <tr class="highlight"><td>Fable 5 weights as text</td><td>~150 trillion</td></tr>
 </table>
 
-<p>At 5,000 characters per shirt: <strong>30 billion shirts</strong> — roughly four for every person alive on Earth. Laid flat, they'd cover an area larger than Antarctica.</p>
+<p>At standard print density — 5,000 characters per shirt — you need <strong>30 billion shirts</strong>, roughly four for every person alive on Earth. Laid flat, they'd cover an area larger than Antarctica.</p>
 
-<p>If you made one giant shirt and used microscopic print (100 chars/cm², requires magnification): <strong>~150 km²</strong> — approximately the size of Washington, D.C. At a legible 6pt font, the required fabric grows to ~750,000 km² — larger than Argentina. The DC figure is the absolute best case.</p>
+<p>If you made one giant piece of fabric and used microscopic print (100 chars/cm², requires magnification): <strong>~150 km²</strong> — approximately the size of Washington, D.C. At a legible 6pt font, the required area grows to ~750,000 km², larger than Argentina. The DC figure is the absolute best case.</p>
 
-<h2>Why it's different now</h2>
+<p>So the protest is physically impossible. It's also legally weaker, which matters even if the physics weren't a problem.</p>
 
-<p>The 1995 protest worked because the cypherpunks had a clean First Amendment argument: source code is human-readable expressive speech, and the government can't apply prior restraint to it. A court agreed.</p>
+<p>The 1995 shirt rested on a clean First Amendment argument: source code is human-readable expressive speech, and you can't apply prior restraint to it. Model weights don't have that defense. 10 trillion floating-point numbers have no expressive content a court will recognize. The nuclear blueprint analogy applies — the government restricts nuclear weapon designs, also "just information," and no court has found that unconstitutional. EAR's dual-use framing is also harder to attack than ITAR; the government isn't calling Fable 5 a weapon, they're calling it dual-use commercial technology, which is both legally defensible and arguably accurate.</p>
 
-<p>Model weights are harder to defend. 10 trillion floating-point numbers have no expressive content a court will recognize in the conventional sense. The nuclear blueprint analogy applies: the government has always restricted nuclear weapon designs, which are also "just information," and no court has found that unconstitutional. If the weights are sufficiently capability-dense, the First Amendment argument may not reach them.</p>
+<h2>The real punchline.</h2>
 
-<p>EAR is also harder to attack than ITAR. The dual-use framework — technologies with legitimate civilian applications that could also enable harm — is exactly the right conceptual frame for frontier AI. The government isn't calling this a weapon. They're calling it dual-use commercial technology, which is both legally defensible and, arguably, accurate.</p>
+<p>All of this is moot anyway. The weights are closed source.</p>
 
-<h2>The punchline</h2>
+<p>RSA was published mathematics. Anyone could print it. The absurdity of the original shirt was wearable precisely because the thing being suppressed was already free — you could derive it from a library card and an afternoon. The government was trying to lock up something that existed everywhere.</p>
 
-<p>The 1995 protest worked because the weapon was public. RSA was mathematics published in academic papers. Anyone could print it. The absurdity was wearable.</p>
-
-<p>Fable 5's weights are closed source. The "munition" lives in a data center, accessible only through an API, under export compliance requirements. You can't print what you can't see.</p>
+<p>Fable 5's weights live in a data center. Accessible only through an API, under export compliance requirements. You can't print what you can't see.</p>
 
 <div class="pullquote">
   <p>The cypherpunks won because math is small and free. Today's AI weights are neither. The shirt is the size of Washington, D.C. Nobody gets to wear it.</p>
