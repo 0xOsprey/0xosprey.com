@@ -116,9 +116,13 @@ or shown to a foreign national.</pre>
 
 <p>If you made one giant piece of fabric and used microscopic print (100 chars/cm², requires magnification): <strong>~150 km²</strong> — approximately the size of Washington, D.C. At a legible 6pt font, the required area grows to ~750,000 km², larger than Argentina. The DC figure is the absolute best case.</p>
 
-<p>So the protest is physically impossible. It's also legally weaker, which matters even if the physics weren't a problem.</p>
+<p>So the protest is physically impossible. The legal case for it is also murkier than in 1995 — though not as dead as it might appear.</p>
 
-<p>The 1995 shirt rested on a clean First Amendment argument: source code is human-readable expressive speech, and you can't apply prior restraint to it. Model weights don't have that defense. 10 trillion floating-point numbers have no expressive content a court will recognize. The nuclear blueprint analogy applies — the government restricts nuclear weapon designs, also "just information," and no court has found that unconstitutional. EAR's dual-use framing is also harder to attack than ITAR; the government isn't calling Fable 5 a weapon, they're calling it dual-use commercial technology, which is both legally defensible and arguably accurate.</p>
+<p>The 1995 shirt rested on a clean First Amendment argument: source code is human-readable expressive speech, and you can't apply prior restraint to it. The Ninth Circuit agreed. Model weights look harder to defend on those grounds — 10 trillion floating-point numbers aren't readable, aren't expressive in any conventional sense, and courts have generally been less protective of compiled artifacts than source code.</p>
+
+<p>But the First Amendment argument for information doesn't require expressiveness. In <em>Sorrell v. IMS Health Inc.</em> (2011), the Supreme Court held that "the creation and dissemination of information are speech within the meaning of the First Amendment" — and applied that protection to pharmaceutical prescriber data: purely functional, commercial, utterly instrumental. Not a poem. Not a manifesto. Just rows of numbers describing which doctors prescribed which drugs. The Court protected it anyway. The logic extends: if dry commercial data qualifies, it's not obvious why the information encoded in model weights doesn't. Coin Center has made this argument explicitly in the context of software export controls, and it's a real one.</p>
+
+<p>The government's best response is the nuclear weapons blueprint analogy — designs for nuclear devices are also "just information," have never received First Amendment protection, and courts have deferred to national security framing there. EAR's dual-use framing is similarly harder to attack than ITAR; the government isn't calling Fable 5 a weapon. But the Sorrell argument means the legal outcome is genuinely contested, not settled. The government is moving into uncharted territory, and so is anyone who would challenge them.</p>
 
 <h2>The real punchline.</h2>
 
@@ -133,7 +137,7 @@ or shown to a foreign national.</pre>
 </div>
 
 <div class="footnote">
-  Parameter estimates for Fable 5 based on independent reporting as of June 2026. RSA Perl is representative; exact shirt versions varied. The Bernstein ruling (9th Cir. 1999) established source code as protected speech; its application to trained model weights is untested. The Commerce Department directive and Lutnick/Amodei letter details are sourced from CNBC, Bloomberg Law, and Axios reporting (June 12–13, 2026); the letter itself is non-public. Intrusion software EAR controls: BIS Interim Final Rule, effective January 19, 2022 (ECCNs 4A005, 4D004). EDA software controls: BIS August 2022 interim rule; May–July 2025 "is informed" letters to Synopsys, Cadence, Siemens. Deemed export doctrine: 15 CFR 734.13. This is analysis, not legal advice.
+  Parameter estimates for Fable 5 based on independent reporting as of June 2026. RSA Perl is representative; exact shirt versions varied. The Bernstein ruling (9th Cir. 1999) established source code as protected speech; its application to trained model weights is untested. The Commerce Department directive and Lutnick/Amodei letter details are sourced from CNBC, Bloomberg Law, and Axios reporting (June 12–13, 2026); the letter itself is non-public. Intrusion software EAR controls: BIS Interim Final Rule, effective January 19, 2022 (ECCNs 4A005, 4D004). EDA software controls: BIS August 2022 interim rule; May–July 2025 "is informed" letters to Synopsys, Cadence, Siemens. Deemed export doctrine: 15 CFR 734.13. <em>Sorrell v. IMS Health Inc.</em>, 564 U.S. 552 (2011) on information as protected speech; Coin Center's application of Sorrell to software export controls: coincenter.org/software-is-speech-why-regulators-cannot-invent-the-missing-middlemen. This is analysis, not legal advice.
 </div>
 
 </body>
