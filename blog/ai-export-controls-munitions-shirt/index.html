@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>The T-Shirt They Made Illegal — Joe Coll</title>
+<title>The T-Shirt They Made Illegal</title>
 <meta name="description" content="In 1995, an illegal weapon fit on a t-shirt. In 2026, the same logic applies to AI. The shirt would now cover Washington, D.C.">
 <meta name="theme-color" content="#060608">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦅</text></svg>">
@@ -30,11 +30,6 @@ p:last-child{margin-bottom:0}
 
 em{font-style:italic}
 strong{font-weight:600;color:rgba(255,255,255,.92)}
-
-.code{background:#0d0f11;border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:20px 22px;margin:36px auto;overflow-x:auto;max-width:520px}
-.code pre{font:13px/1.7 'Courier New',monospace;color:#4ade80;white-space:pre}
-.code .label{font-size:12px;line-height:1;color:rgba(255,255,255,.62);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.1)}
-.code .warning{color:#f87171}
 
 .pullquote{margin:52px 0;padding:28px 0;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1)}
 .pullquote p{font-size:20px;line-height:1.65;font-style:italic;color:rgba(255,255,255,.72);letter-spacing:.005em}
@@ -68,50 +63,37 @@ tr:last-child td{border-bottom:none;font-weight:600;color:#fff}
 <img class="shirt-img reveal" src="https://store.blockstream.com/cdn/shop/files/RSA_Shirt_square_back.png?v=1763692241&width=1946" alt="The original RSA munitions t-shirt back, showing the Perl script and Bill of Rights passages">
 <div class="img-caption reveal">The original shirt. Blockstream still sells reproductions.</div>
 
-<p class="reveal">In 1995, the US government put RSA encryption on the same export-control list as cruise missiles. Strong cryptography — keys over 40 bits — was a "munition" under the International Traffic in Arms Regulations (ITAR), administered by the State Department, with felony penalties for unauthorized export. The deemed export rule made it worse: showing the technology to a foreign national on US soil counted as an export. Their eyes on your screen: federal crime.</p>
+<p class="reveal">In 1995, the US government put RSA encryption on the same export-control list as cruise missiles. Strong cryptography, keys over 40 bits, counted as a "munition" under the International Traffic in Arms Regulations (ITAR), administered by the State Department, with felony penalties for unauthorized export. The deemed export rule made it worse: showing the technology to a foreign national on US soil counted as an export. Their eyes on your screen, federal crime.</p>
 
-<p class="reveal">Cryptographer Adam Back decided to make the absurdity literal. He printed a working RSA implementation on a t-shirt — 220 characters of Perl — and labeled it accordingly.</p>
+<p class="reveal">Cryptographer Adam Back made the absurdity literal. He printed a working RSA implementation on a t-shirt, 220 characters of Perl, and labeled it a munition that could not be exported or shown to a foreign national.</p>
 
-<div class="code reveal">
-  <div class="label">RSA encryption — compact Perl (representative, circa 1995)</div>
-  <pre>#!/usr/bin/perl -sp0777i&lt;X+d*lMLa^*lN%0]dsXx++lMlN/dsM0&lt;j]dsj
-$/=unpack('H*',$_);$_=`echo 16dio\U$k"SK$/SM$n\EsN0p[lN*1
-lK[d2%Sa2/d0$^Xxp"|dc`;s/\W//g;$_=pack('H*',/(..)*/g)</pre>
-</div>
-
-<div class="code reveal">
-  <pre class="warning">WARNING: This shirt is classified as a munition
-and may not be exported from the United States,
-or shown to a foreign national.</pre>
-</div>
-
-<p class="reveal">At DEF CON — packed with foreign nationals — wearing it was technically multiple counts of illegal arms export. The code spread to mugs, tattoos, email signatures. Every copy: another munitions shipment.</p>
+<p class="reveal">At DEF CON, packed with foreign nationals, wearing it was technically multiple counts of illegal arms export. The code spread to mugs, tattoos, email signatures. Every copy was another munitions shipment.</p>
 
 <h2>They won. Sort of.</h2>
 
 <p class="reveal">Daniel Bernstein sued after the State Department told him he'd need a munitions dealer license to publish his dissertation. The Ninth Circuit ruled in 1999: source code is protected speech. You cannot apply prior restraint to mathematics written as software.</p>
 
-<p class="reveal">The Clinton administration relented. Cryptography moved from ITAR — the weapons shelf — to EAR, the Export Administration Regulations, a dual-use commercial framework run by the Commerce Department. The cypherpunks called it a win. The shirt retired.</p>
+<p class="reveal">The Clinton administration relented. Cryptography moved from ITAR, the weapons shelf, to EAR, the Export Administration Regulations, a dual-use commercial framework run by the Commerce Department. The cypherpunks called it a win. The shirt retired.</p>
 
-<p class="reveal">What they had actually won was narrower than it looked. The government was forced to change the shelf, not the policy. The controls remained. The deemed export rule remained. The mechanism remained. The government filed one institutional note for later: <em>start with EAR next time.</em></p>
+<p class="reveal">What they had actually won was narrower than it looked. The government was forced to change the shelf, not the policy. The controls remained. The deemed export rule remained. The mechanism remained. The government filed one institutional note for later: start with EAR next time.</p>
 
 <h2>Next time arrived.</h2>
 
-<p class="reveal">On June 9, 2026, Anthropic released Claude Fable 5 and Claude Mythos 5 — frontier models estimated at roughly 10 trillion parameters. Three days later, Commerce Secretary Howard Lutnick sent a letter directly to Anthropic CEO Dario Amodei directing the company to suspend all access to both models for any foreign national, whether inside or outside the United States, including foreign national Anthropic employees. Anthropic received the order at 5:21 PM on June 12 and disabled both models globally — the only practical way to comply, since it cannot verify citizenship at the account level in real time. The directive cites "national security authorities" but the Commerce letter is non-public and the specific statute has not been named.</p>
+<p class="reveal">On June 9, 2026, Anthropic released Claude Fable 5 and Claude Mythos 5, frontier models estimated at roughly 10 trillion parameters. Three days later, Commerce Secretary Howard Lutnick sent a letter directly to Anthropic CEO Dario Amodei directing the company to suspend all access to both models for any foreign national, whether inside or outside the United States, including foreign national Anthropic employees. Anthropic received the order at 5:21 PM on June 12 and disabled both models globally, the only practical way to comply, since it cannot verify citizenship at the account level in real time. The directive cites "national security authorities," but the Commerce letter is non-public and the specific statute has not been named.</p>
 
-<p class="reveal">The issuing authority is Commerce, not State — placing this in EAR territory rather than ITAR. This is the exact framework the cypherpunks drove the government to in 1999.</p>
+<p class="reveal">The issuing authority is Commerce, not State. That places this in EAR territory rather than ITAR, the exact framework the cypherpunks drove the government to in 1999.</p>
 
-<p class="reveal">And it isn't the first time software has ended up there. BIS has export-controlled offensive cybersecurity tools since 2021 — intrusion software, surveillance platforms, anything "specially designed for the generation, command and control, or delivery" of a cyberattack. In 2022 it moved to control EDA software, the design tools used to build advanced semiconductors, initially targeting specific entities like Huawei, then briefly extending to all of China before reversing course six weeks later under rare earth retaliation pressure. The pattern is consistent: software that could plausibly enable a national security threat gets put on the Commerce Control List under EAR, with licenses required for export.</p>
+<p class="reveal">And it isn't the first time software has ended up there. BIS has export-controlled offensive cybersecurity tools since 2021: intrusion software, surveillance platforms, anything "specially designed for the generation, command and control, or delivery" of a cyberattack. In 2022 it moved to control EDA software, the design tools used to build advanced semiconductors, initially targeting specific entities like Huawei, then briefly extending to all of China before reversing course six weeks later under rare earth retaliation pressure. The pattern is consistent: software that could plausibly enable a national security threat gets put on the Commerce Control List under EAR, with licenses required for export.</p>
 
-<p class="reveal">What is genuinely new about the Fable 5 action is where the export happens. Every prior software control targeted the <em>distribution</em> of code — stopping a company from sending software abroad. The Fable 5 directive applies the deemed export doctrine to <em>inference</em>: a foreign national typing into an API counts as a technology transfer to their country of citizenship. That is a doctrinal expansion with no real precedent. The government isn't saying Anthropic can't ship a disk to Beijing. It's saying a French engineer sitting in San Francisco cannot use the API.</p>
+<p class="reveal">What is new about the Fable 5 action is where the export happens. Every prior software control targeted the <em>distribution</em> of code, stopping a company from sending software abroad. The Fable 5 directive applies the deemed export doctrine to <em>inference</em>: a foreign national typing into an API counts as a technology transfer to their country of citizenship. That is a doctrinal expansion with no real precedent. The government isn't saying Anthropic can't ship a disk to Beijing. It's saying a French engineer sitting in San Francisco cannot use the API.</p>
 
 <p class="reveal">Same play. Sharper teeth. The rulebook they were handed after losing, with a new interpretation they've never tried before.</p>
 
-<p class="reveal">Which raises an obvious question: if someone wanted to respond the same way Back did — print the illegal weapon on a shirt, wear it to DEF CON — what would that take?</p>
+<p class="reveal">Which raises an obvious question. If someone wanted to respond the way Back did, print the illegal weapon on a shirt and wear it to DEF CON, what would that take?</p>
 
 <h2>The new shirt.</h2>
 
-<p class="reveal">The RSA shirt was 220 characters. Fable 5's weights, printed as text, run to roughly 150 trillion characters — each parameter as a signed decimal number.</p>
+<p class="reveal">The RSA shirt was 220 characters. Fable 5's weights, printed as text, run to roughly 150 trillion characters, each parameter a signed decimal number.</p>
 
 <table class="reveal">
   <tr><th>Item</th><th>Characters</th></tr>
@@ -121,40 +103,40 @@ or shown to a foreign national.</pre>
   <tr><td>Fable 5 weights as text</td><td>~150 trillion</td></tr>
 </table>
 
-<p class="reveal">At standard print density — 5,000 characters per shirt — you need <strong>30 billion shirts</strong>, roughly four for every person alive on Earth. Laid flat, they'd cover an area larger than Antarctica.</p>
+<p class="reveal">At standard print density, 5,000 characters per shirt, you need <strong>30 billion shirts</strong>, roughly four for every person alive on Earth. Laid flat, they would cover an area larger than Antarctica.</p>
 
-<p class="reveal">If you made one giant piece of fabric and used microscopic print (100 chars/cm², requires magnification): <strong>~150 km²</strong> — approximately the size of Washington, D.C. At a legible 6pt font, the required area grows to ~750,000 km², larger than Argentina. The DC figure is the absolute best case.</p>
+<p class="reveal">Make one giant piece of fabric and use microscopic print (100 chars/cm², requires magnification) and you get <strong>~150 km²</strong>, about the size of Washington, D.C. At a legible 6pt font, the required area grows to ~750,000 km², larger than Argentina. The DC figure is the absolute best case.</p>
 
-<p class="reveal">So the protest is physically impossible. The legal case for it is also murkier than in 1995 — and in a way that cuts to the heart of what's actually being regulated.</p>
+<p class="reveal">So the protest is physically impossible. The legal case for it is also murkier than in 1995, in a way that gets at what is actually being regulated.</p>
 
 <h2>The First Amendment question.</h2>
 
-<p class="reveal">The munitions shirt analogy is the right one for open-weight models — Llama, Mistral, anything downloadable and deployable locally. If Anthropic had released Fable 5 as open weights, the legal question would be nearly settled before it started.</p>
+<p class="reveal">The munitions shirt analogy fits open-weight models: Llama, Mistral, anything you can download and run locally. If Anthropic had released Fable 5 as open weights, the legal question would be close to settled before it started.</p>
 
-<p class="reveal">They didn't. What BIS restricted was closed-model weights no one outside Anthropic can download. That distinction does more legal work than it might seem.</p>
+<p class="reveal">They didn't. What BIS restricted was closed weights no one outside Anthropic can download. That distinction does more legal work than it looks.</p>
 
-<p class="reveal">Coin Center has mapped the relevant constitutional line carefully. In software cases, First Amendment protection turns not on what the code does but on the role of the developer. A developer who publishes code — distributes it, lets others download and run it — is a speaker. A developer who operates a service, controls the compute, and exercises ongoing discretion over access is closer to a principal acting in a custodial capacity. Publication versus operation. The shirt was publication. The API is operation.</p>
+<p class="reveal">Coin Center has mapped the constitutional line. In software cases, First Amendment protection turns on the role of the developer, not on what the code does. A developer who publishes code, distributes it, lets others download and run it, is a speaker. A developer who operates a service, controls the compute, and decides who gets access is closer to a custodian. Publication versus operation. The shirt was publication. The API is operation.</p>
 
-<p class="reveal">Anthropic running Fable 5 through API-controlled inference on proprietary hardware looks like the second case. Under that framework, the First Amendment argument doesn't disappear — but it weakens exactly where BIS struck.</p>
+<p class="reveal">Anthropic running Fable 5 through API-controlled inference on its own hardware looks like the second case. The First Amendment argument doesn't disappear. It weakens at exactly the point where BIS struck.</p>
 
-<p class="reveal">The strongest counter is <em>Sorrell v. IMS Health Inc.</em> (2011): the Supreme Court held that "the creation and dissemination of information are speech within the meaning of the First Amendment" and protected pharmaceutical prescriber data that was purely functional, commercial, not expressive by any ordinary definition. Just rows of numbers describing which doctors prescribed which drugs. The Court protected it anyway. If dry commercial data qualifies, the information encoded in model outputs might too. Prior restraint doctrine adds force: licensing requirements conditioning publication on government approval are presumptively unconstitutional — and that argument would be at its strongest if BIS tried to block Anthropic from openly releasing weights.</p>
+<p class="reveal">The strongest counter is <em>Sorrell v. IMS Health Inc.</em> (2011): the Supreme Court held that "the creation and dissemination of information are speech within the meaning of the First Amendment" and protected pharmaceutical prescriber data that was purely functional, commercial, not expressive by any ordinary definition. Just rows of numbers describing which doctors prescribed which drugs. The Court protected it anyway. If dry commercial data qualifies, the information encoded in model outputs might too. Prior restraint doctrine adds force: licensing requirements that condition publication on government approval are presumptively unconstitutional, and that argument is strongest if BIS tried to block Anthropic from openly releasing weights.</p>
 
-<p class="reveal">That is the case BIS chose not to bring. The prior restraint argument points exactly at the scenario that didn't happen. The government's best response — the nuclear weapons blueprint analogy — doesn't need to engage with the publication question at all. Designs for nuclear devices are "just information" too, and courts have consistently deferred to national security framing there.</p>
+<p class="reveal">That is the case BIS chose not to bring. The prior restraint argument points at the scenario that didn't happen. The government's best response, the nuclear weapons blueprint analogy, doesn't need to touch the publication question at all. Designs for nuclear devices are "just information" too, and courts have consistently deferred to national security framing there.</p>
 
-<p class="reveal">The legal outcome is genuinely contested, not settled. What's legible is that the First Amendment argument is weakest at precisely the point where BIS chose to act.</p>
+<p class="reveal">The legal outcome is contested, not settled. The First Amendment argument is weakest at exactly the point where BIS chose to act.</p>
 
 <h2>The real punchline.</h2>
 
-<p class="reveal">RSA was published mathematics. Anyone could print it. The absurdity of the original shirt was wearable precisely because the thing being suppressed was already free — you could derive it from a library card and an afternoon. The government was trying to lock up something that existed everywhere.</p>
+<p class="reveal">RSA was published mathematics. Anyone could print it. The original shirt was wearable because the thing being suppressed was already free. You could derive it from a library card and an afternoon. The government was trying to lock up something that existed everywhere.</p>
 
 <p class="reveal">Fable 5's weights live in a data center. You can't print what you can't see.</p>
 
 <div class="pullquote reveal">
-  <p>The cypherpunks won because math is small and free. Today's AI weights are neither. The shirt is the size of Washington, D.C. Nobody gets to wear it.</p>
+  <p>The cypherpunks won because math is small and free. Today's model weights are neither. The shirt is the size of Washington, D.C. Nobody gets to wear it.</p>
 </div>
 
 <div class="footnote reveal">
-Parameter estimates for Fable 5 based on independent reporting as of June 2026. RSA Perl is representative; exact shirt versions varied. The Bernstein ruling (9th Cir. 1999) established source code as protected speech; its application to trained model weights is untested. The Commerce Department directive and Lutnick/Amodei letter details are sourced from CNBC, Bloomberg Law, and Axios reporting (June 12–13, 2026); the letter itself is non-public. Intrusion software EAR controls: BIS Interim Final Rule, effective January 19, 2022 (ECCNs 4A005, 4D004). EDA software controls: BIS August 2022 interim rule; May–July 2025 "is informed" letters to Synopsys, Cadence, Siemens. Deemed export doctrine: 15 CFR 734.13. <em>Sorrell v. IMS Health Inc.</em>, 564 U.S. 552 (2011) on information as protected speech. Coin Center's publication/operation framework for software First Amendment analysis: coincenter.org/software-is-speech-why-regulators-cannot-invent-the-missing-middlemen. This is analysis, not legal advice.
+Parameter estimates for Fable 5 based on independent reporting as of June 2026. RSA Perl is representative. Exact shirt versions varied. The Bernstein ruling (9th Cir. 1999) established source code as protected speech. Its application to trained model weights is untested. The Commerce Department directive and Lutnick to Amodei letter details are sourced from CNBC, Bloomberg Law, and Axios reporting (June 12 to 13, 2026). The letter itself is non-public. Intrusion software EAR controls: BIS Interim Final Rule, effective January 19, 2022 (ECCNs 4A005, 4D004). EDA software controls: BIS August 2022 interim rule, plus the May to July 2025 "is informed" letters to Synopsys, Cadence, Siemens. Deemed export doctrine: 15 CFR 734.13. <em>Sorrell v. IMS Health Inc.</em>, 564 U.S. 552 (2011) on information as protected speech. Coin Center's publication and operation framework for software First Amendment analysis: coincenter.org/software-is-speech-why-regulators-cannot-invent-the-missing-middlemen. This is analysis, not legal advice.
 </div>
 
 <script>
