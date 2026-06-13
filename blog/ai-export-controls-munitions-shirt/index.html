@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>The T-Shirt They Made Illegal — Joe Coll</title>
+<meta name="description" content="In 1995, an illegal weapon fit on a t-shirt. In 2026, the same logic applies to AI. The shirt would now cover Washington, D.C.">
+<meta name="theme-color" content="#060608">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦅</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:#060608;color:rgba(255,255,255,.82);font:17px/1.85 'Courier New',monospace;min-height:100%}
+body{max-width:620px;margin:0 auto;padding:60px 24px 100px}
+a{color:inherit;text-decoration:none}
+
+.back{font-size:11px;color:rgba(255,255,255,.25);letter-spacing:.08em;display:inline-block;margin-bottom:52px;transition:color .2s}
+.back:hover{color:rgba(255,255,255,.6)}
+
+header{margin-bottom:48px}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:16px}
+h1{font-size:clamp(20px,4vw,28px);line-height:1.25;color:rgba(255,255,255,.9);font-weight:normal;margin-bottom:16px}
+.meta{font-size:11px;color:rgba(255,255,255,.22);letter-spacing:.06em}
+
+h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.35);margin:48px 0 18px;font-weight:normal}
+
+p{margin-bottom:1.4em;color:rgba(255,255,255,.72)}
+p:last-child{margin-bottom:0}
+
+.code{background:#0d0d0f;border:1px solid rgba(255,255,255,.07);border-radius:3px;padding:18px 20px;margin:28px 0;overflow-x:auto}
+.code pre{font:13px/1.7 'Courier New',monospace;color:#00e676;white-space:pre}
+.code .label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.2);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.code .warning{color:#ef5350}
+
+.pullquote{border-left:2px solid rgba(255,255,255,.15);padding:4px 18px;margin:28px 0}
+.pullquote p{color:rgba(255,255,255,.45);font-style:italic}
+
+table{width:100%;border-collapse:collapse;margin:28px 0;font-size:13px}
+th{text-align:left;padding:6px 12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.25);border-bottom:1px solid rgba(255,255,255,.08)}
+td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);color:rgba(255,255,255,.55)}
+tr:last-child td{border-bottom:none}
+td:last-child{color:rgba(255,255,255,.35)}
+.highlight td{color:rgba(255,255,255,.85) !important}
+
+.footnote{margin-top:64px;padding-top:24px;border-top:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.2);line-height:1.7}
+</style>
+</head>
+<body>
+
+<a class="back" href="/blog/">← writing</a>
+
+<header>
+  <div class="eyebrow">Export Controls / Satire</div>
+  <h1>The T-Shirt They Made Illegal</h1>
+  <div class="meta">Joe Coll &nbsp;·&nbsp; Jun 12, 2026</div>
+</header>
+
+<h2>1995</h2>
+
+<p>The US government once put the RSA encryption algorithm on the same export-control list as cruise missiles. Strong cryptography — keys over 40 bits — was a "munition" under the International Traffic in Arms Regulations (ITAR), administered by the State Department, with felony penalties for unauthorized export. The deemed export rule extended this to showing the technology to a foreign national on US soil. Their eyes on your screen: federal crime.</p>
+
+<p>Cryptographer Adam Back designed a response. He printed a working RSA implementation on a t-shirt. The complete text of this "international munition" was approximately 220 characters.</p>
+
+<div class="code">
+  <div class="label">RSA encryption — compact Perl (representative, circa 1995)</div>
+  <pre>#!/usr/bin/perl -sp0777i&lt;X+d*lMLa^*lN%0]dsXx++lMlN/dsM0&lt;j]dsj
+$/=unpack('H*',$_);$_=`echo 16dio\U$k"SK$/SM$n\EsN0p[lN*1
+lK[d2%Sa2/d0$^Xxp"|dc`;s/\W//g;$_=pack('H*',/(..)*/g)</pre>
+</div>
+
+<div class="code">
+  <pre class="warning">WARNING: This shirt is classified as a munition
+and may not be exported from the United States,
+or shown to a foreign national.</pre>
+</div>
+
+<p>At DEF CON — a conference packed with foreign nationals — wearing it was technically committing multiple counts of illegal arms export. That was the point. The code also appeared on coffee mugs, tattoos, and email signatures. Every distribution: another munitions shipment.</p>
+
+<h2>1999</h2>
+
+<p>Daniel Bernstein sued after the State Department told him he'd need to register as a munitions dealer to publish his dissertation. The Ninth Circuit ruled in 1999: source code is protected speech. You cannot apply prior restraint to mathematics written as software.</p>
+
+<p>The Clinton administration moved cryptography from ITAR (weapons shelf) to EAR — the Export Administration Regulations, administered by the Commerce Department, the dual-use commercial technology framework. The cypherpunks had won.</p>
+
+<p>What they had actually won: the government was forced to move math from the weapons shelf to the dual-use shelf. The controls didn't disappear. The bureaucratic container changed. The government filed a note: <em>next time, start with EAR.</em></p>
+
+<h2>June 2026</h2>
+
+<p>Anthropic released Claude Fable 5 on June 9, 2026 — a Mythos-class frontier model sharing its weights with the restricted Claude Mythos 5, estimated at roughly 10 trillion parameters. The US government applied export controls to the Mythos 5 weights under <strong>EAR</strong> — the exact framework the cypherpunks forced them into in 1999. Anthropic reportedly restricted access globally to ensure compliance with the deemed export rule.</p>
+
+<p>Same play. Different rulebook. The government remembered.</p>
+
+<h2>How big is the new shirt?</h2>
+
+<table>
+  <tr><th>Item</th><th>Characters</th></tr>
+  <tr><td>RSA Perl shirt</td><td>~220</td></tr>
+  <tr><td>War and Peace</td><td>3.2 million</td></tr>
+  <tr><td>All of English Wikipedia</td><td>4.3 billion</td></tr>
+  <tr class="highlight"><td>Fable 5 weights as text</td><td>~150 trillion</td></tr>
+</table>
+
+<p>At 5,000 characters per shirt: <strong>30 billion shirts</strong> — roughly four for every person alive on Earth. Laid flat, they'd cover an area larger than Antarctica.</p>
+
+<p>If you made one giant shirt and used microscopic print (100 chars/cm², requires magnification): <strong>~150 km²</strong> — approximately the size of Washington, D.C. At a legible 6pt font, the required fabric grows to ~750,000 km² — larger than Argentina. The DC figure is the absolute best case.</p>
+
+<h2>Why it's different now</h2>
+
+<p>The 1995 protest worked because the cypherpunks had a clean First Amendment argument: source code is human-readable expressive speech, and the government can't apply prior restraint to it. A court agreed.</p>
+
+<p>Model weights are harder to defend. 10 trillion floating-point numbers have no expressive content a court will recognize in the conventional sense. The nuclear blueprint analogy applies: the government has always restricted nuclear weapon designs, which are also "just information," and no court has found that unconstitutional. If the weights are sufficiently capability-dense, the First Amendment argument may not reach them.</p>
+
+<p>EAR is also harder to attack than ITAR. The dual-use framework — technologies with legitimate civilian applications that could also enable harm — is exactly the right conceptual frame for frontier AI. The government isn't calling this a weapon. They're calling it dual-use commercial technology, which is both legally defensible and, arguably, accurate.</p>
+
+<h2>The punchline</h2>
+
+<p>The 1995 protest worked because the weapon was public. RSA was mathematics published in academic papers. Anyone could print it. The absurdity was wearable.</p>
+
+<p>Fable 5's weights are closed source. The "munition" lives in a data center, accessible only through an API, under export compliance requirements. You can't print what you can't see.</p>
+
+<div class="pullquote">
+  <p>The cypherpunks won because math is small and free. Today's AI weights are neither. The shirt is the size of Washington, D.C. Nobody gets to wear it.</p>
+</div>
+
+<div class="footnote">
+  Parameter estimates for Fable 5 based on independent reporting as of June 2026. RSA Perl is representative; exact shirt versions varied. The Bernstein ruling (9th Cir. 1999) established source code as protected speech; its application to trained model weights is untested. ITAR/EAR descriptions accurate as of 2026. This is analysis, not legal advice.
+</div>
+
+</body>
+</html>
