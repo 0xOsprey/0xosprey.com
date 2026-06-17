@@ -51,25 +51,35 @@ strong{font-weight:600;color:rgba(255,255,255,.92)}
   <div class="meta">Joe Coll &nbsp;·&nbsp; Jun 16, 2026</div>
 </header>
 
-<p class="reveal">A few days ago I wrote about a t-shirt. The point was that the government had pulled an old playbook off the shelf and aimed it at AI. The letter behind it was secret then. It is public now.</p>
+<p class="reveal">A few days ago I wrote about a t-shirt. The argument was that the government had pulled the 1990s crypto-export playbook off the shelf and pointed it at AI models. The letter that set it all off was non-public then. It is public now.</p>
 
-<p class="reveal">It does one thing. It lets a single letter switch off a frontier model worldwide, for everyone who is not American, with criminal penalties for ignoring it.</p>
+<p class="reveal">On June 16, Bloomberg got a copy. Commerce Secretary Howard Lutnick had written to Dario Amodei the previous Friday. It is an "is informed" letter, the formal mechanism the Bureau of Industry and Security uses to tell one named company that it now needs a license. The license covers the export, re-export, or in-country transfer of two models by name, Claude Fable 5 and Claude Mythos 5, to every destination on Earth and to every foreign person wherever they happen to be standing. Releasing the model to a foreign national inside the United States counts too. There is no border you can draw around it. Compliance means a global shutoff.</p>
 
-<p class="reveal">Everyone is reaching for the First Amendment. It is the exciting argument and the wrong one. Nobody reads model weights. The government already controls other piles of numbers nobody reads, and the courts have let it.</p>
+<p class="reveal">The interesting part is not that it happened. It is that there was no clean way to do it.</p>
 
-<p class="reveal">The argument that works is boring. The model was published. Published things are already outside these rules. You do not need the Constitution. You need the exception the rulebook wrote for itself.</p>
+<h2>The wrong spear.</h2>
 
-<p class="reveal">Here is the real shape of it. There was no clean way to do this. Aim at the weights and you hit the exception. Aim at the model and you hit it harder, and pick a constitutional fight on top. Aim at the API and you invent a transaction that never happened. Every version is contestable. The letter is not the mistake. The instrument is.</p>
+<p class="reveal">The argument everyone reaches for is the First Amendment one. Code is speech, Bernstein won that in 1999, model weights are code, so the controls are prior restraint. It is the exciting argument, and here it is the weak one. The crypto cases were won on code a human can read. A mathematician could read the Perl on the shirt and understand it. Nobody reads a model's weights. They are a pile of numbers no person derives meaning from directly. The government already controls one famous pile of numbers no person reads for pleasure, nuclear weapon design information, and no court has called that an unconstitutional restriction on speech. Closed model weights sit closer to that than to a printed algorithm. Point the First Amendment at this and it bounces.</p>
 
-<p class="reveal">So it will not go to court. Anthropic does not want to be the company that sued the security state, and it does not need to be. It gets negotiated away. A quieter Fable comes back.</p>
+<h2>The right one, which nobody is using.</h2>
 
-<p class="reveal">Which means the legal fight was never the story. This is.</p>
+<p class="reveal">The argument that actually bites is the boring one. The export rules carve out their own exception. Information that has been published is not subject to them. Fable 5 was launched publicly. You could pay for it and use it. That is published in the plain sense of the word, even though you could never download the weights. If the model is published, it falls outside the regulation Commerce is invoking before any constitutional question gets asked. Lead with the carve-out. Keep the Constitution as the backstop, not the spear.</p>
+
+<h2>No right tool.</h2>
+
+<p class="reveal">Here is the part that took me a while to see. Commerce did not pick the wrong instrument. There was no right one. Go after the weights and you are restricting an artifact nobody can read, which dodges the speech problem but runs straight into the published-information carve-out. Go after the model itself, which is what the letter does, and you make the carve-out problem worse and invite the First Amendment fight on top of it. Narrow it to the API and you are inventing a transaction, where a French engineer in San Francisco typing into a box becomes a technology transfer to France, a doctrine with no real precedent. Every version of this is contestable. The defect is not the letter. The defect is that the government is trying to do something the rulebook was never built to do, and reaching for whichever page is closest.</p>
+
+<h2>What happens next.</h2>
+
+<p class="reveal">Not a lawsuit. Anthropic does not want to be the company that sued the national security state over export controls, and it does not need to be. The likely path is quiet. They work it out with the government and a sanded-down Fable comes back. The legal vulnerability that makes this fun to write about probably never gets tested, because the people who could test it have every reason not to.</p>
+
+<p class="reveal">That is also why the legal angle is a sideshow. The thing that survives is the precedent. A frontier model that millions of people were using on a Tuesday can be switched off worldwide by Friday, by a single letter, citing authorities the public cannot read. Access to the most capable software ever built is now a government permission, granted quietly and revocable in an afternoon. That stays true whether or not anyone ever wins the argument about whether weights are speech.</p>
 
 <div class="pullquote reveal">
-  <p>A model millions used on Tuesday can be switched off worldwide by Friday, by one letter, citing reasons the public cannot read. Access is now a permission. Granted quietly. Revocable in an afternoon.</p>
+  <p>A model millions were using on Tuesday can be switched off worldwide by Friday, by one letter, citing authorities the public cannot read. That is the precedent, and it outlives whoever wins the legal argument.</p>
 </div>
 
-<p class="reveal">The honest fix is a law, not a clever brief. It is the rare case where the company, the government, and the public all want the same thing. Almost nobody will pass it in time.</p>
+<p class="reveal">The honest fix is not a clever brief. It is a law. Right now the whole regime runs on last-minute letters built on theories a competent lawyer can pick apart, which is bad for the company, bad for the administration that wants the controls to hold, and bad for everyone who has to plan around a rulebook that changes by fax. That is the rare part. The lab, the government, and the public all want the same outcome here, a real statute instead of a Friday letter. Almost nobody is going to pass one in time.</p>
 
 <div class="footnote reveal">
 The letter became public via a Bloomberg copy reported June 16, 2026. It is an "is informed" letter under the Export Control Reform Act (50 U.S.C. 4817) and EAR 744.22, naming the Claude Fable 5 and Claude Mythos 5 models. Published-information carve-out: 15 CFR 734.7 and 734.3(b). The carve-out reading follows Charlie Bullock's analysis of the letter. Deemed export doctrine: 15 CFR 734.13. <em>Sorrell v. IMS Health Inc.</em>, 564 U.S. 552 (2011), on the creation and dissemination of information as protected speech. The publication-versus-operation framework is Coin Center's: coincenter.org/software-is-speech-why-regulators-cannot-invent-the-missing-middlemen. Follows "The T-Shirt They Made Illegal," June 12. This is analysis, not legal advice.
